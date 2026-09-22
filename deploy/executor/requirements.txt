@@ -1,0 +1,18 @@
+# Named to the model in ToolDescriptions.Libraries; a guard test keeps the two lists equal.
+pandas==3.0.5
+numpy==2.5.3
+matplotlib==3.11.2
+duckdb==1.5.5
+openpyxl==3.1.5
+
+# What those need, pinned so that a rebuild installs the same code.
+contourpy==1.4.0
+cycler==0.12.1
+et_xmlfile==2.0.0
+fonttools==4.65.0
+kiwisolver==1.5.1
+packaging==26.3
+pillow==12.3.0
+pyparsing==3.3.2
+python-dateutil==2.9.0.post0
+six==1.17.0

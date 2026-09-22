@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="src/Snail.MCP.Sandbox.csproj" />
+  <Project Path="tests/Snail.MCP.Sandbox.Tests.csproj" />
+</Solution>
