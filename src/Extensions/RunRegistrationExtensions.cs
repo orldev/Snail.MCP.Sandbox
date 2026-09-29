@@ -19,7 +19,8 @@ public static class RunRegistrationExtensions
             services
                 .AddInputs()
                 .AddDocker()
-                .AddSingleton<Runs>();
+                .AddSingleton<Runs>()
+                .AddSingleton<TestRuns>();
 
             return services;
         }
@@ -37,7 +38,7 @@ public static class RunRegistrationExtensions
 
         /// <summary>The node's Docker daemon, the containers made on it and the sweep of what an earlier process left.</summary>
         /// <remarks>
-        /// The client's own timeout is the longest run a caller may ask for plus the container's grace: an exec's
+        /// The client's own timeout is the longest run or test run a caller may ask for plus the container's grace: an exec's
         /// output is one response, and a shorter client timeout would cut a legitimate run off before its own clock.
         /// </remarks>
         public IServiceCollection AddDocker()
@@ -48,10 +49,14 @@ public static class RunRegistrationExtensions
 
                 return new DockerClientBuilder()
                     .WithEndpoint(new Uri(limits.DockerEndpoint))
-                    .WithTimeout(TimeSpan.FromSeconds(limits.MaxTimeoutSeconds) + Confinement.Grace)
+                    .WithTimeout(TimeSpan.FromSeconds(Math.Max(limits.MaxTimeoutSeconds, limits.MaxTestTimeoutSeconds)) + Confinement.Grace)
                     .Build();
             });
             services.AddSingleton<IContainers, DockerContainers>();
+            services.AddSingleton<RestoreProxy>();
+            services.AddHostedService(provider => provider.GetRequiredService<RestoreProxy>());
+            services.AddSingleton<ITestContainers, DockerTests>();
+            services.AddSingleton<IProjectArchives, TarProjectArchives>();
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LeftoverContainers>());
 
             return services;

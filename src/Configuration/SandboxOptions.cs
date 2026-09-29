@@ -74,6 +74,62 @@ public sealed class SandboxOptions
     /// </remarks>
     public string[] AllowedHosts { get; set; } = [];
 
+    /// <summary>Image a .NET project is built and tested in: Microsoft's own SDK image, not one built for the sandbox.</summary>
+    public string DotnetImage { get; set; } = "mcr.microsoft.com/dotnet/sdk:10.0";
+
+    /// <summary>Image a Node project is built and tested in: the official slim image.</summary>
+    /// <remarks>A Python project is tested in <see cref="Image"/>, which carries pytest, so the node holds no Python image twice.</remarks>
+    public string NodeImage { get; set; } = "node:22-bookworm-slim";
+
+    /// <summary>Docker network the restore stage of a test run fetches packages over; none keeps even the restore offline.</summary>
+    /// <remarks>
+    /// The network is disconnected before the build, so project code that runs at build or test time never has one.
+    /// Restore runs code too — MSBuild targets, npm install scripts, a setup.py — which is why a deployment points this
+    /// at a network that reaches only a package mirror. With none, a run restores only what the package volume holds.
+    /// </remarks>
+    public string RestoreNetwork { get; set; } = "none";
+
+    /// <summary>The restore proxy's address as a restore container reaches it, such as http://mcp-sandbox:3128; null keeps the proxy off.</summary>
+    /// <remarks>
+    /// The restore is handed it in its environment with the run's own name as credentials, and every host it asks for is
+    /// answered in the tool's result. Put the restore on a network that reaches nothing but this address, and the list is
+    /// exact and the proxy is the restore's only way out; on an open network, a program that ignores it goes around it.
+    /// </remarks>
+    public string? RestoreProxy { get; set; }
+
+    /// <summary>Port the restore proxy listens on inside the server; 0 keeps it off.</summary>
+    public int RestoreProxyPort { get; set; }
+
+    /// <summary>Prefix of the volumes packages are kept in between test runs, one per toolchain.</summary>
+    public string CacheVolumePrefix { get; set; } = "snail-sandbox-cache";
+
+    /// <summary>Memory one test run may use, in bytes, swap included; a build needs more than a script.</summary>
+    public long TestMemoryBytes { get; set; } = 2L * 1024 * 1024 * 1024;
+
+    /// <summary>CPUs one test run may use.</summary>
+    public double TestCpus { get; set; } = 2.0;
+
+    /// <summary>Processes and threads one test run may hold at once; a compiler and a test host each run many threads.</summary>
+    public long TestPids { get; set; } = 1024;
+
+    /// <summary>Bytes a test run may write under /tmp, where the SDKs keep their first-run files.</summary>
+    public long TestTmpFolderBytes { get; set; } = 256 * 1024 * 1024;
+
+    /// <summary>Test runs the node executes at once, apart from program runs.</summary>
+    public int MaxConcurrentTestRuns { get; set; } = 2;
+
+    /// <summary>Seconds a test run gets when the caller names none, restore and build included.</summary>
+    public int DefaultTestTimeoutSeconds { get; set; } = 600;
+
+    /// <summary>Most seconds any caller may ask for a test run.</summary>
+    public int MaxTestTimeoutSeconds { get; set; } = 1800;
+
+    /// <summary>Most bytes a project may unpack to.</summary>
+    public long MaxProjectBytes { get; set; } = 256 * 1024 * 1024;
+
+    /// <summary>Most files a project may hold.</summary>
+    public int MaxProjectFiles { get; set; } = 20000;
+
     /// <summary>Folder the inputs of each run are downloaded under, on the node's own disk.</summary>
     public string WorkRoot { get; set; } = Path.Combine(Path.GetTempPath(), "snail-sandbox");
 }

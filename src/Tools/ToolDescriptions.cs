@@ -9,7 +9,7 @@ namespace Snail.MCP.Sandbox.Tools;
 public static class ToolDescriptions
 {
     /// <summary>The libraries the executor image installs by name; a guard test compares them with its requirements.</summary>
-    public const string Libraries = "pandas, numpy, matplotlib, duckdb and openpyxl";
+    public const string Libraries = "pandas, numpy, matplotlib, duckdb, openpyxl and pytest";
 
     public const string RunPython =
         $"""
@@ -22,11 +22,39 @@ public static class ToolDescriptions
         beginning and their end with the middle cut, so print summaries rather than whole tables.
         """;
 
+    /// <summary>The outcomes a test run answers with, as the answer spells them; a guard test compares them with <c>TestOutcome</c>.</summary>
+    public const string Outcomes = "passed, failed, noTests, buildFailed, restoreFailed, timedOut or nothingToBuild";
+
+    public const string RunTests =
+        $"""
+        Build a project and run its tests in a fresh container, and get back how many passed and which failed.
+        The toolchain is found from the files: a .slnx, .sln, .csproj or .fsproj is built with .NET 10, a package.json
+        at the root with Node 22, Python files with Python 3.12 and pytest. Packages are restored first; the build and
+        the tests run with no network. A run gets 2048 MB of memory and 2 CPU.
+        A project may unpack to 256 MB and 20000 files. The outcome is one of {Outcomes}.
+        The answer counts the tests, names the first 20 failures with their messages, and carries the end of the
+        output of the stage that decided the outcome.
+        """;
+
+    public const string RunTestsProject =
+        """
+        The project as a tar or tar.gz of its working folder, without build outputs and dependencies: the key of that
+        archive exactly as list_objects shows it. Nothing else of the task is visible to the run.
+        """;
+
+    public const string RunTestsToolchain =
+        "dotnet, node or python; omitted, it is found from the project's files. Name it when a project mixes them.";
+
+    public const string RunTestsTimeout =
+        "Seconds the whole run may take, restore and build included, from 1 to 1800; 600 when omitted. Past it the run is killed.";
+
     public const string Diagnose =
         """
         Whether this sandbox can run code at all: the node's Docker daemon answers, it has the isolating runtime,
         and the executor image is there. Nothing is run. Call it when sandbox_run_python fails before the program
         starts; a program that ran and exited with an error is a fault in the program, not in the sandbox.
+        untestable lists the toolchains whose image the node lacks: sandbox_run_tests cannot test those projects
+        until the image is pulled onto the node, and calling again will not change that.
         """;
 
     public const string RunPythonCode =

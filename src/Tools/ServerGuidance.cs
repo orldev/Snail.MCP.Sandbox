@@ -17,6 +17,9 @@ public static class ServerGuidance
         nothing from an earlier call exists. Pass the task's files by key; they appear in the working directory
         under their names. Write what should come back to /out. Print short summaries: long output is cut.
 
+        sandbox_run_tests builds a whole project and runs its tests: pass the key of the project's archive. It answers
+        with an outcome and the counts; failures name the tests that failed and why. Fix what they name and run again.
+
         When a call fails before the program starts, sandbox_diagnose says whether the node can run code at all.
         find_tool names the tool for a thing said in your own words, and the arguments it takes.
 

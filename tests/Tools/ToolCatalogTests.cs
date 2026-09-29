@@ -2,8 +2,10 @@ using System.ComponentModel;
 using System.Reflection;
 using ModelContextProtocol.Server;
 using Snail.MCP.Sandbox.Adapters;
+using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Configuration;
 using Snail.MCP.Sandbox.Tools;
+using Snail.MCP.Sandbox.Domain;
 
 namespace Snail.MCP.Sandbox.Tests.Tools;
 
@@ -54,13 +56,56 @@ public sealed class ToolCatalogTests
             parameter => Assert.False(string.IsNullOrWhiteSpace(parameter.GetCustomAttribute<DescriptionAttribute>()?.Description), parameter.Name));
 
     /// <summary>A run happens in a container that is gone when the call returns, and a diagnosis only asks the daemon.</summary>
+    /// <remarks>The test run alone is open to the world: its restore stage fetches packages over the network it is given.</remarks>
     [Fact]
-    public void Hints_EveryTool_IsReadOnlyAndClosedToTheWorld() =>
+    public void Hints_EveryTool_IsReadOnlyAndOnlyTheTestRunIsOpenToTheWorld() =>
         Assert.All(Tools.Select(tool => tool.GetCustomAttribute<McpServerToolAttribute>()!), tool =>
         {
             Assert.True(tool.ReadOnly, tool.Name);
-            Assert.False(tool.OpenWorld, tool.Name);
+            Assert.Equal(tool.Name == "sandbox_run_tests", tool.OpenWorld);
         });
+
+    /// <summary>Every outcome the answer can carry is named to the model, spelled the way the answer spells it.</summary>
+    [Fact]
+    public void Description_Outcomes_NameEveryTestOutcome()
+    {
+        var named = ToolDescriptions.Outcomes.Replace(" or ", ", ", StringComparison.Ordinal).Split(", ");
+
+        Assert.Equal(
+            Enum.GetValues<TestOutcome>().Select(outcome => System.Text.Json.JsonNamingPolicy.CamelCase.ConvertName(outcome.ToString())).Order(),
+            named.Order());
+        Assert.Contains(ToolDescriptions.Outcomes, ToolDescriptions.RunTests, StringComparison.Ordinal);
+    }
+
+    /// <summary>A field the model is not told about is one it reads past: diagnose names untestable as the answer carries it.</summary>
+    [Fact]
+    public void Description_Diagnose_NamesTheUntestableField()
+    {
+        var fields = ToolResponse.From(Answer.Ok(new Readiness("29.1.0", "runsc", "image"))).StructuredContent!.Value.EnumerateObject().Select(field => field.Name);
+
+        Assert.Contains("untestable", fields);
+        Assert.Contains("untestable", ToolDescriptions.Diagnose, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Description_Toolchains_NameEveryOneACallerMayGive() =>
+        Assert.All(Toolchains.Names, name => Assert.Contains(name, ToolDescriptions.RunTestsToolchain, StringComparison.Ordinal));
+
+    /// <summary>Defaults 2147483648 bytes, 2.0 CPU, 268435456 bytes and 20000 files: the description says 2048 MB, 2 CPU, 256 MB and 20000 files.</summary>
+    [Fact]
+    public void Description_TestRunLimits_MatchTheDefaults()
+    {
+        Assert.Contains($"{Defaults.TestMemoryBytes / Megabyte} MB of memory and {Defaults.TestCpus} CPU", ToolDescriptions.RunTests, StringComparison.Ordinal);
+        Assert.Contains($"unpack to {Defaults.MaxProjectBytes / Megabyte} MB and {Defaults.MaxProjectFiles} files", ToolDescriptions.RunTests, StringComparison.Ordinal);
+        Assert.Contains($"first {TestReports.MaxFailures} failures", ToolDescriptions.RunTests, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Description_TestRunTimeouts_MatchTheDefaults()
+    {
+        Assert.Contains($"from 1 to {Defaults.MaxTestTimeoutSeconds}", ToolDescriptions.RunTestsTimeout, StringComparison.Ordinal);
+        Assert.Contains($"{Defaults.DefaultTestTimeoutSeconds} when omitted", ToolDescriptions.RunTestsTimeout, StringComparison.Ordinal);
+    }
 
     /// <summary>Defaults 536870912 bytes and 1.0 CPU: the description says 512 MB and 1 CPU.</summary>
     [Fact]

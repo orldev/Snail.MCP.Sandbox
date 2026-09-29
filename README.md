@@ -1,11 +1,14 @@
 # Snail.MCP.Sandbox
 
-An MCP server over streamable HTTP that runs **Python a model wrote, in a container made for that one call**,
-with no network, a read-only root, no capabilities and hard limits, under gVisor. Built for Snail.Swarm.Agent,
+An MCP server over streamable HTTP that runs **Python a model wrote, or a whole project's build and tests, in a
+container made for that one call**, with no network, a read-only root, no capabilities and hard limits, under gVisor. Built for Snail.Swarm.Agent,
 where it runs as the Nomad job `mcp-sandbox` on a node of class `sandbox`.
 
-Three tools. `sandbox_run_python` takes the whole program, the task's files it reads, and how long it may take;
-the answer is what it printed, its exit code, and every file it left in `/out`. `sandbox_diagnose` runs nothing
+Four tools. `sandbox_run_python` takes the whole program, the task's files it reads, and how long it may take;
+the answer is what it printed, its exit code, and every file it left in `/out`. `sandbox_run_tests` takes a project
+as a tar or tar.gz of its working folder, restores, builds and tests it with the toolchain its files call for —
+.NET 10, Node 22 or Python 3.12 with pytest — and answers with an outcome, the counts, the failures by name and
+the end of the output of the stage that decided it. `sandbox_diagnose` runs nothing
 and says whether the node could: the Docker daemon answers, it has the runtime, the executor image is there. The
 platform's probe calls it, so a server that starts on a node without gVisor shows as unhealthy instead of green.
 `find_tool` says which of them does a thing, asked in a model's own words.
@@ -32,14 +35,27 @@ nothing, and a sequence of runs shares nothing between its steps — every run g
 | --- | --- |
 | The node | A node of its own class that holds nothing worth taking: no workers, no working copies, no tokens. Outbound traffic only to the object store. This is deployment, not code — see [The sandbox node](#the-sandbox-node). |
 | The kernel | `runsc` (gVisor), a kernel in user space between the program and the host's. The runtime is checked on **every** run; a daemon that does not know it gets a refusal, never a quiet run under `runc`. |
-| The container | Network `none`; read-only root; every capability dropped, bounding set included; `no-new-privileges`; user `65534:65534`; memory with no swap on top; CPU; processes; `/tmp` 64 MB. Created for one run, used for one exec, removed in a `finally`. |
+| The container | Network `none`; read-only root; every capability dropped, bounding set included; `no-new-privileges`; user `65534:65534`; memory with no swap on top; CPU; processes; `/tmp` 64 MB, `noexec`. Created for one run, used for one exec, removed in a `finally`. |
 | Files in | Signed links only, only from hosts in `AllowedHosts`, no redirects followed, size counted while reading rather than trusted from the header. Copied into the container owned by root and read-only; the downloads are deleted when the call ends, whatever happened. |
-| Files out | `/out` is a tmpfs of 32 MB owned by the run user, mounted `noexec`. Up to 10 files come back; links and special files are named, never followed. |
+| Files out | `/out` is a tmpfs of the container itself, 32 MB, owned by the run user alone, `noexec`. It is read back by `tar` run in the container as that user, the archive held to twice the tmpfs size; up to 10 files come back, links and special files are named, never followed. |
 | The node's share | At most 4 runs at once; a call past that waits for a place. Every other limit is per run. |
 
 A container whose server dies mid-run still ends: its own process sleeps for the run's timeout plus 60 seconds
 and the container removes itself with its volumes. One the server created but never started is swept at the
 server's next start, which is why **one server per Docker daemon** is assumed.
+
+### A test run
+
+A test run keeps every layer of a run above except two, both because a build is not a script. The project folder
+is the run user's and writable, since a build writes beside its sources. And the restore stage is given a network
+when `RestoreNetwork` names one: packages are fetched there into a volume per toolchain that outlives the run, the
+container is then taken off the network and checked to be on none, and the build and the tests run offline. A
+container still attached to a network after the restore is removed without building anything. Test runs have
+places of their own (`MaxConcurrentTestRuns`) and limits of their own, because one build holds four times the
+memory of a program.
+
+The images are the toolchains' own: Microsoft's .NET SDK image and the official Node image; Python projects are
+tested in the executor image, which carries pytest. Nothing is built for the sandbox but that one image.
 
 ## What is not
 
@@ -49,12 +65,27 @@ server's next start, which is why **one server per Docker daemon** is assumed.
 - **Without gVisor, a kernel exploit reaches the host.** Setting `Runtime` to `runc` gives exactly that, and
   every other layer still holds. It is a setting for checking the rest of the confinement on a laptop, not for
   running work.
-- **gVisor has not been checked yet.** Every live check in this repository passed under `runc` on Docker
-  Desktop; `runsc` does not install on macOS. Run the live suite with `runsc` on the first sandbox node before
-  trusting it with real tasks.
+- **`noexec` stops a program, not an interpreter.** `/out` and `/tmp` refuse to execute a file written there —
+  measured on runsc release-20260921.0 and on runc, the live suite passing 22 of 22 under each — but
+  `python /tmp/x.py` still runs, as it would anywhere: the layer closes dropped binaries, the kernel and the
+  container close the rest. It holds under gVisor because both are tmpfs mounts of the container itself; `/out`
+  used to be a Docker volume on a host tmpfs, read back through the archive API, and gVisor served that volume
+  through its own file access, where the host mount's `noexec` never reached. A test run's `/tmp` stays
+  executable: the SDKs run what they unpack there.
+- **gVisor counts processes by itself.** Its threads are not host tasks, so the pids cgroup does not see them —
+  500 threads started under a limit of 64. Under `runsc` a run also gets `RLIMIT_NPROC` equal to its process
+  limit, which stopped them at 63. Past its memory a gVisor sandbox is killed whole: the exec answers 128 and the
+  container ends, which the server reports as 137, like `runc`.
 - **The descriptions state the defaults.** The limits the model reads are compile-time text held equal to the
   defaults of `SandboxOptions` by tests. Changing a limit only in configuration makes the description wrong
   for that deployment; change the default.
+- **The restore stage runs project code with a network.** MSBuild targets, npm install scripts and a setup.py all
+  run during a restore. `RestoreNetwork` is `none` by default, so a restore reads only what the package volume
+  already holds; a deployment that gives it a network should give it one that reaches only a package mirror.
+- **The package volume is shared by every run of a toolchain on the node.** A project can leave a package in it
+  that the next project's restore picks up from the cache. The volumes are named by `CacheVolumePrefix`, and
+  removing them costs only the next restore's download.
+- **Node runs write no report this sandbox reads**, so a Node answer has an outcome from the exit code and no counts.
 - **Outputs are held in memory** while an answer is built: at most twice the size of `/out` per run.
 - `/dev/shm` is Docker's default 64 MB tmpfs and is writable by the run; it is memory, not disk, and ends with
   the container.
@@ -77,8 +108,9 @@ A sandbox node is a Linux host with Docker and gVisor:
    through the socket — so `allow_runtimes` needs no change. The job declares a service, so the node needs the
    cluster's Consul like any other.
 4. Firewall: outbound to the object store and nothing else.
-5. Pull the executor image onto the node — the server never downloads it, and `sandbox_diagnose` says when it is
-   missing. The server image comes from the registry with a version tag: Nomad's Docker driver always pulls
+5. Pull the executor image and the toolchain images (`DotnetImage`, `NodeImage`) onto the node — the server never
+   downloads them. `sandbox_diagnose` refuses without the executor image and lists as `untestable` every
+   toolchain whose image is missing. The server image comes from the registry with a version tag: Nomad's Docker driver always pulls
    `latest`, so an image built on the node under that tag does not start. Then run the live suite under `runsc`
    (below); it passing is what turns this README's "under gVisor" from a design into a fact.
 
@@ -94,6 +126,17 @@ A sandbox node is a Linux host with Docker and gVisor:
   embedded resource of its own at `sandbox://out/<name>`, in the same order — pictures too, because an image
   block cannot carry a name. The platform stores each under that name, lists it among the task's objects, and
   can sign it for the next call.
+- **Tests.** `sandbox_run_tests` takes one `project` key, signed the same way, optionally a `toolchain` and a
+  `timeoutSeconds`. Its JSON carries `toolchain`, `outcome` — `passed`, `failed`, `noTests`, `buildFailed`,
+  `restoreFailed`, `timedOut` or `nothingToBuild` — the `total`, `passed`, `failed` and `skipped` counts (null when no
+  report was written), up to 20 `failures` with `name` and `message`, `seconds`, the deciding stage's `output` and
+  whether it was cut, what of the project was `omitted`, the hosts the restore reached as `network` (null when no
+  `RestoreProxy` watched it, empty when it reached none), and a `note`. The counts are read test by test from the
+  reports the frameworks write — TRX from dotnet, JUnit XML from pytest — never from a console. A repository whose
+  `global.json` names Microsoft.Testing.Platform as its test runner is tested in that mode: the report is asked for
+  with `--report-trx`, and again with xunit.v3's own `--report-xunit-trx` when the project carries no TRX extension;
+  exit code 8, no test ran, is `noTests`. A Python project with no `requirements*.txt` has its `pyproject.toml`
+  installed, with its `test` and `dev` extras.
 - **Errors.** `isError` means the run did not happen: no runtime, no image, a refused file. A program that ran
   and failed is `ok: true` with a non-zero `exitCode`; exit code 137 is almost always the memory limit.
 - **The job.** Port 8826. The socket mounted at `/var/run/docker.sock`, and the socket's group — the node's
@@ -127,6 +170,21 @@ a limit of zero.
 | `MaxInputBytes` | Largest input file | `67108864` |
 | `MaxInputTotalBytes` | All input files of one call | `268435456` |
 | `AllowedHosts` | Hosts input links may point at, as `host` or `host:port`; `AllowedHosts__0`, `__1`… | none — every link refused |
+| `DotnetImage` | Image a .NET project is built and tested in | `mcr.microsoft.com/dotnet/sdk:10.0` |
+| `NodeImage` | Image a Node project is built and tested in | `node:22-bookworm-slim` |
+| `RestoreNetwork` | Docker network the restore stage fetches packages over; never `host` or `container:` | `none` — restore from the package volume only |
+| `RestoreProxy` | The restore proxy's address as a restore container reaches it, such as `http://mcp-sandbox:3128`; every host a restore asks for is answered as `network` | none — the proxy is off, `network` is `null` |
+| `RestoreProxyPort` | Port the restore proxy listens on inside the server, set together with `RestoreProxy` | `0` |
+| `CacheVolumePrefix` | Prefix of the package volumes, one per toolchain | `snail-sandbox-cache` |
+| `TestMemoryBytes` | Memory of one test run, with no swap on top | `2147483648` |
+| `TestCpus` | CPUs of one test run | `2.0` |
+| `TestPids` | Processes and threads of one test run at once | `1024` |
+| `TestTmpFolderBytes` | Size of `/tmp` in a test run | `268435456` |
+| `MaxConcurrentTestRuns` | Test runs on the node at once, apart from program runs | `2` |
+| `DefaultTestTimeoutSeconds` | Seconds a test run gets when the call names none, restore and build included | `600` |
+| `MaxTestTimeoutSeconds` | Most seconds a call may ask for a test run | `1800` |
+| `MaxProjectBytes` | Most bytes a project may unpack to | `268435456` |
+| `MaxProjectFiles` | Most files a project may hold | `20000` |
 | `WorkRoot` | Folder on the server's own disk where inputs wait for the copy into the container | the temp folder |
 
 ## How a run works
@@ -139,6 +197,14 @@ a tmpfs **volume** can be read back through the API while the container runs, wh
 cannot; and the archive has to be buffered before `TarReader` reads it, because reading it straight off the
 Docker.DotNet response stream fails after the first entry.
 
+A test run goes the same way with three differences. The project's archive is rewritten before it is copied in:
+every entry owned by the run user, a folder entry for every folder a file sits in — Docker keeps the owner an
+archive names, and makes an implied folder as root's — links and special files left out and named, a path that
+climbs out refused, the declared sizes added up before a byte is copied. The container idles on `sleep`, since the
+SDK images carry no Python. And the stages are execs of their own: restore, build and test for .NET and Node, restore
+and test for Python, each stopping the run when it fails. A new package volume is handed to the run user once per
+server process by a container that runs `chown` as root with `CHOWN` its only capability and no network.
+
 Nothing travels by bind mount, so the server's own container needs no host path to match.
 
 ## Build and test
@@ -147,6 +213,8 @@ Nothing travels by bind mount, so the server's own container needs no host path 
 dotnet test
 docker build -t snail/sandbox-python:latest -f deploy/executor/Dockerfile .
 docker build -t snail/s3l-sandbox-mcp:latest -f deploy/server/Dockerfile .
+docker pull mcr.microsoft.com/dotnet/sdk:10.0
+docker pull node:22-bookworm-slim
 ```
 
 The unit tests fake Docker, the downloads and the containers, and hold the descriptions, the images and this

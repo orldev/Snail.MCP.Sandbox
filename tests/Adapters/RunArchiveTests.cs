@@ -63,18 +63,6 @@ public sealed class RunArchiveTests : IDisposable
         Assert.Equal("charts/sales.svg", Assert.Single(collected.Files).Name);
     }
 
-    /// <summary>The archive is held in memory before reading, so what one run can make the server hold stops at the cap.</summary>
-    [Fact]
-    public async Task IsCopiedWithinAsync_ArchivePastTheCap_StopsAndSaysSo()
-    {
-        using var copied = new MemoryStream();
-
-        var isCopied = await RunArchive.IsCopiedWithinAsync(new MemoryStream(new byte[4096]), copied, 1024, CancellationToken.None);
-
-        Assert.False(isCopied);
-        Assert.True(copied.Length <= 1024);
-    }
-
     [Theory]
     [InlineData("report.csv", "text/csv")]
     [InlineData("chart.png", "image/png")]

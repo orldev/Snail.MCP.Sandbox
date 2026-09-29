@@ -68,24 +68,6 @@ internal static class RunArchive
             [.. omitted, .. ordered.Skip(maxFiles).Select(file => $"{file.Name}: past the limit of {maxFiles} files")]);
     }
 
-    /// <summary>Whether the whole archive fitted under the cap; the copy stops at the first byte past it.</summary>
-    public static async Task<bool> IsCopiedWithinAsync(Stream source, Stream target, long cap, CancellationToken cancellationToken)
-    {
-        var buffer = new byte[81920];
-        long copied = 0;
-
-        for (var read = await source.ReadAsync(buffer, cancellationToken); read > 0; read = await source.ReadAsync(buffer, cancellationToken))
-        {
-            copied += read;
-            if (copied > cap)
-                return false;
-
-            await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-        }
-
-        return true;
-    }
-
     private static PaxTarEntry Folder(string name) => new(TarEntryType.Directory, $"{name}/")
     {
         Mode = Listable,

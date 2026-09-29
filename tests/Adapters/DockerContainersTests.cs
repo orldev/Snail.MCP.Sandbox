@@ -41,7 +41,7 @@ public sealed class DockerContainersTests : IDisposable
         var daemon = Ready()
             .Answer("StartContainerExecAsync", _ => Task.FromResult(Output((1, "rows: 12\n"), (2, "warning: dtype\n"))))
             .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = 3 }))
-            .Answer("GetArchiveFromContainerAsync", _ => Task.FromResult(new ContainerArchiveResponse { Stream = Out("chart.png") }));
+            .Collects(Out("chart.png"));
 
         var answer = await Containers(daemon).RunAsync("print(1)", [], TimeSpan.FromSeconds(5), CancellationToken.None);
 
@@ -50,6 +50,178 @@ public sealed class DockerContainersTests : IDisposable
         Assert.Equal("rows: 12\n", outcome.Stdout);
         Assert.Equal("warning: dtype\n", outcome.Stderr);
         Assert.Equal("image/png", Assert.Single(outcome.Outputs).MediaType);
+    }
+
+    /// <summary>
+    /// Measured on runsc release-20260921.0: past its memory limit the whole gVisor sandbox is killed, the exec answers 128
+    /// with the runtime's complaint as stderr, and the container is left exited with OOMKilled set.
+    /// </summary>
+    [Fact]
+    public async Task RunAsync_SandboxKilledWholeForMemory_AnswersTheKillWithoutTheRuntimesWords()
+    {
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output((2, "waiting on pid 2: urpc method \"containerManager.WaitPID\" failed\n"))))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = 128 }))
+            .Answer("InspectContainerAsync", _ => Task.FromResult(new ContainerInspectResponse { State = new State { Running = false, OOMKilled = true } }))
+            .Collects(Out());
+
+        var outcome = (await Containers(daemon).RunAsync("block = bytearray(400 << 20)", [], TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
+
+        Assert.Equal(DockerContainers.Killed, outcome.ExitCode);
+        Assert.Equal(string.Empty, outcome.Stderr);
+    }
+
+    /// <summary>Measured the moment the exec ended: the daemon answered «removing» with OOMKilled not yet set.</summary>
+    [Fact]
+    public async Task RunAsync_ContainerBeingRemovedAfterTheRun_CountsAsKilled()
+    {
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output()))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = 128 }))
+            .Answer("InspectContainerAsync", _ => Task.FromResult(new ContainerInspectResponse { State = new State { Status = "removing", Running = false, OOMKilled = false } }))
+            .Collects(Out());
+
+        var outcome = (await Containers(daemon).RunAsync("block = bytearray(400 << 20)", [], TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
+
+        Assert.Equal(DockerContainers.Killed, outcome.ExitCode);
+    }
+
+    /// <summary>Measured in a full live suite: the daemon still reported the killed sandbox running the moment its exec ended.</summary>
+    [Fact]
+    public async Task RunAsync_SandboxStillReportedRunningAMoment_CountsAsKilledOnceItStops()
+    {
+        var asked = 0;
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output()))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = DockerContainers.Lost }))
+            .Answer("InspectContainerAsync", _ => ++asked < 3
+                ? Task.FromResult(new ContainerInspectResponse { State = new State { Running = true } })
+                : Task.FromException<ContainerInspectResponse>(new DockerContainerNotFoundException(HttpStatusCode.NotFound, "No such container")))
+            .CollectsFromAGoneContainer();
+
+        var outcome = (await Containers(daemon).RunAsync("block = bytearray(400 << 20)", [], TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
+
+        Assert.Equal(DockerContainers.Killed, outcome.ExitCode);
+    }
+
+    /// <summary>A program may exit 128 itself; its container then goes on idling, and the code stays the program's.</summary>
+    [Fact]
+    public async Task RunAsync_ProgramExits128ItselfInALiveContainer_KeepsItsCode()
+    {
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output((2, "fatal: 128\n"))))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = DockerContainers.Lost }))
+            .Collects(Out());
+
+        var outcome = (await Containers(daemon).RunAsync("raise SystemExit(128)", [], TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
+
+        Assert.Equal(DockerContainers.Lost, outcome.ExitCode);
+        Assert.Equal("fatal: 128\n", outcome.Stderr);
+    }
+
+    /// <summary>An ordinary failure is the program's: nothing is asked of the container, so it costs no wait.</summary>
+    [Fact]
+    public async Task RunAsync_ProgramFailsOrdinarily_AsksNothingOfTheContainer()
+    {
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output((2, "KeyError: 'total'\n"))))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = 1 }))
+            .Collects(Out());
+
+        await Containers(daemon).RunAsync("rows['total']", [], TimeSpan.FromSeconds(5), CancellationToken.None);
+
+        Assert.DoesNotContain("InspectContainerAsync", daemon.Calls);
+    }
+
+    /// <summary>A killed gVisor container removes itself, and can be gone before the server asks about it.</summary>
+    [Fact]
+    public async Task RunAsync_ContainerGoneAfterTheRun_CountsAsKilledAndSaysWhyNoFileCameBack()
+    {
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output()))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = 128 }))
+            .Answer("InspectContainerAsync", _ => Task.FromException<ContainerInspectResponse>(new DockerContainerNotFoundException(HttpStatusCode.NotFound, "No such container")))
+            .CollectsFromAGoneContainer();
+
+        var outcome = (await Containers(daemon).RunAsync("block = bytearray(400 << 20)", [], TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
+
+        Assert.Equal(DockerContainers.Killed, outcome.ExitCode);
+        Assert.Contains("killed", Assert.Single(outcome.Omitted), StringComparison.Ordinal);
+    }
+
+    /// <summary>GNU tar answers 1 when a file changed while it read it; the archive is whole and the files come back.</summary>
+    [Fact]
+    public async Task RunAsync_FileChangedWhileTarReadIt_StillReturnsTheFiles()
+    {
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output()))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = 0 }))
+            .Collects(Out("table.csv"), exitCode: 1);
+
+        var outcome = (await Containers(daemon).RunAsync("print(1)", [], TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
+
+        Assert.Equal("table.csv", Assert.Single(outcome.Outputs).Name);
+    }
+
+    /// <summary>What tar says on its standard error is no part of the archive, which comes back whole.</summary>
+    [Fact]
+    public async Task RunAsync_TarWarnsWhileReading_StillReturnsTheFiles()
+    {
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output()))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = 0 }))
+            .Collects(Out("table.csv"), warning: "tar: out/table.csv: file changed as we read it\n");
+
+        var outcome = (await Containers(daemon).RunAsync("print(1)", [], TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
+
+        Assert.Equal("table.csv", Assert.Single(outcome.Outputs).Name);
+    }
+
+    /// <summary>tar failing outright is said, not passed off as a run that wrote nothing.</summary>
+    [Fact]
+    public async Task RunAsync_TarFailsToReadOut_SaysWhyNoFileCameBack()
+    {
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output()))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = 0 }))
+            .Collects(Out("table.csv"), exitCode: 2);
+
+        var outcome = (await Containers(daemon).RunAsync("print(1)", [], TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
+
+        Assert.Empty(outcome.Outputs);
+        Assert.Contains("exit 2", Assert.Single(outcome.Omitted), StringComparison.Ordinal);
+    }
+
+    /// <summary>The archive is held in memory before reading, so what one run can make the server hold stops at twice /out.</summary>
+    [Fact]
+    public async Task RunAsync_ArchivePastTwiceTheOutFolder_ReturnsNoFileAndSaysSo()
+    {
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output()))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = 0 }))
+            .Collects(new MemoryStream(new byte[4096]));
+        var containers = new DockerContainers(daemon.Client, Options.Create(new SandboxOptions { WorkRoot = _workRoot, OutFolderBytes = 1024 }), NullLogger<DockerContainers>.Instance);
+
+        var outcome = (await containers.RunAsync("print(1)", [], TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
+
+        Assert.Empty(outcome.Outputs);
+        Assert.Contains("2048", Assert.Single(outcome.Omitted), StringComparison.Ordinal);
+    }
+
+    /// <summary>A container that stopped with its run refuses a new exec with 409; that is the run killed, not the sandbox failing.</summary>
+    [Fact]
+    public async Task RunAsync_ContainerStoppedBeforeTheCollection_SaysWhyNoFileCameBack()
+    {
+        var daemon = Ready()
+            .Answer("StartContainerExecAsync", _ => Task.FromResult(Output()))
+            .Answer("InspectContainerExecAsync", _ => Task.FromResult(new ContainerExecInspectResponse { Running = false, ExitCode = 0 }))
+            .Answer("CreateContainerExecAsync", arguments => arguments[1] is ContainerExecCreateParameters { Cmd: ["tar", ..] }, Collecting.Collect,
+                _ => Task.FromException<ContainerExecCreateResponse>(new DockerApiException(HttpStatusCode.Conflict, "container is not running")));
+
+        var answer = await Containers(daemon).RunAsync("print(1)", [], TimeSpan.FromSeconds(5), CancellationToken.None);
+
+        Assert.True(answer.IsSuccess);
+        Assert.Contains("killed", Assert.Single(answer.Value!.Omitted), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -76,7 +248,7 @@ public sealed class DockerContainersTests : IDisposable
         var answer = await Containers(daemon).RunAsync("import os; os.close(1)", [], TimeSpan.FromMilliseconds(300), CancellationToken.None);
 
         Assert.True(answer.Value!.TimedOut);
-        Assert.DoesNotContain("GetArchiveFromContainerAsync", daemon.Calls);
+        Assert.DoesNotContain(Collecting.Collect, daemon.Calls);
     }
 
     [Fact]
@@ -118,7 +290,27 @@ public sealed class DockerContainersTests : IDisposable
 
         var answer = await Containers(daemon).DiagnoseAsync(CancellationToken.None);
 
-        Assert.Equal(new Readiness("29.1.0", "runsc", "snail/sandbox-python:latest"), answer.Value);
+        var readiness = answer.Value!;
+        Assert.Equal("29.1.0", readiness.DockerVersion);
+        Assert.Equal("runsc", readiness.Runtime);
+        Assert.Equal("snail/sandbox-python:latest", readiness.Image);
+        Assert.Empty(readiness.Untestable);
+    }
+
+    /// <summary>The server never pulls: a node without a toolchain's image still runs code, and says which projects it cannot test.</summary>
+    [Fact]
+    public async Task DiagnoseAsync_NodeWithoutTheDotnetImage_NamesDotnetUntestableAndStaysReady()
+    {
+        var daemon = new Daemon()
+            .Answer("GetSystemInfoAsync", _ => Task.FromResult(System("runc", "runsc")))
+            .Answer("InspectImageAsync", arguments => arguments[0] as string == new SandboxOptions().DotnetImage
+                ? Task.FromException<ImageInspectResponse>(new DockerImageNotFoundException(HttpStatusCode.NotFound, "No such image"))
+                : Task.FromResult(new ImageInspectResponse()));
+
+        var answer = await Containers(daemon).DiagnoseAsync(CancellationToken.None);
+
+        Assert.True(answer.IsSuccess);
+        Assert.Equal([Toolchain.Dotnet], answer.Value!.Untestable);
     }
 
     /// <summary>The probe that passes on a node without gVisor is the one this tool exists to fail.</summary>
@@ -155,6 +347,7 @@ public sealed class DockerContainersTests : IDisposable
         .Answer("ExtractArchiveToContainerAsync", _ => Task.CompletedTask)
         .Answer("StartContainerAsync", _ => Task.FromResult(true))
         .Answer("CreateContainerExecAsync", _ => Task.FromResult(new ContainerExecCreateResponse { ID = "exec-1" }))
+        .Answer("InspectContainerAsync", _ => Task.FromResult(new ContainerInspectResponse { State = new State { Running = true } }))
         .Answer("RemoveContainerAsync", _ => Task.CompletedTask);
 
     private static SystemInfoResponse System(params string[] runtimes) => new()

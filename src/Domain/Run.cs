@@ -7,7 +7,12 @@ public sealed record RunRequest(string Code, IReadOnlyList<Uri> Files, TimeSpan 
 public sealed record InputFile(string Name, string Path, long Bytes);
 
 /// <summary>What the node can run code with: the daemon's version, the isolating runtime it knows, the executor image it holds.</summary>
-public sealed record Readiness(string DockerVersion, string Runtime, string Image);
+public sealed record Readiness(string DockerVersion, string Runtime, string Image)
+{
+    /// <summary>The toolchains whose image the node does not hold, so their projects cannot be tested until someone pulls it.</summary>
+    /// <remarks>The server never downloads an image: a missing one is found here rather than as a failed test run.</remarks>
+    public IReadOnlyList<Toolchain> Untestable { get; init; } = [];
+}
 
 /// <summary>A file the code left in /out.</summary>
 public sealed record OutputFile(string Name, string MediaType, byte[] Bytes);

@@ -11,6 +11,7 @@ namespace Snail.MCP.Sandbox.Tests.Adapters;
 public sealed class Daemon
 {
     private readonly Dictionary<string, Func<object?[], object?>> _answers = [];
+    private readonly List<Conditional> _conditionals = [];
 
     public Daemon()
     {
@@ -18,12 +19,14 @@ public sealed class Daemon
         var containers = Proxy<IContainerOperations>();
         var exec = Proxy<IExecOperations>();
         var images = Proxy<IImageOperations>();
+        var networks = Proxy<INetworkOperations>();
 
         Client = Proxy<IDockerClient>();
         _answers["get_System"] = _ => system;
         _answers["get_Containers"] = _ => containers;
         _answers["get_Exec"] = _ => exec;
         _answers["get_Images"] = _ => images;
+        _answers["get_Networks"] = _ => networks;
     }
 
     public IDockerClient Client { get; }
@@ -37,8 +40,27 @@ public sealed class Daemon
         return this;
     }
 
+    /// <summary>Answers the operation this way when its arguments match, recording the call under <paramref name="named"/>.</summary>
+    /// <remarks>
+    /// One container takes several execs — the run, then tar reading /out back — and a test scripts each of them; the
+    /// name keeps «the run's exec» and «the collection» apart in <see cref="Calls"/>. The newest matching answer wins.
+    /// </remarks>
+    public Daemon Answer(string operation, Func<object?[], bool> when, string named, Func<object?[], object?> answer)
+    {
+        _conditionals.Insert(0, new Conditional(operation, when, named, answer));
+
+        return this;
+    }
+
     internal object? Invoke(string operation, object?[] arguments)
     {
+        var conditional = _conditionals.FirstOrDefault(candidate => candidate.Operation == operation && candidate.When(arguments));
+        if (conditional is not null)
+        {
+            Calls.Add(conditional.Named);
+            return conditional.Answer(arguments);
+        }
+
         if (!operation.StartsWith("get_", StringComparison.Ordinal))
             Calls.Add(operation);
 
@@ -55,6 +77,9 @@ public sealed class Daemon
         return proxy;
     }
 }
+
+/// <summary>An answer the daemon gives to one operation only when the arguments match.</summary>
+internal sealed record Conditional(string Operation, Func<object?[], bool> When, string Named, Func<object?[], object?> Answer);
 
 /// <summary>The proxy half of <see cref="Daemon"/>: every call on a Docker interface goes to the script.</summary>
 public class Scripted : DispatchProxy

@@ -15,6 +15,7 @@ namespace Snail.MCP.Sandbox.Tests.Live;
 /// kernel boundary, under runsc on a sandbox node that as well. The image is <c>SNAIL_SANDBOX_LIVE_IMAGE</c>, the
 /// default executor when unset; build it first.
 /// </remarks>
+[Collection(LiveFactAttribute.Daemon)]
 public sealed class IsolationTests : IDisposable
 {
     private static readonly string Runtime = Environment.GetEnvironmentVariable(LiveFactAttribute.RuntimeVariable) ?? string.Empty;
@@ -172,6 +173,37 @@ public sealed class IsolationTests : IDisposable
             """);
 
         Assert.NotEqual("ran", report.GetProperty("exec").GetString());
+    }
+
+    [LiveFact]
+    public async Task Tmp_ProgramWrittenThere_CannotBeExecuted()
+    {
+        var report = await ReportAsync("""
+            import json, os, subprocess
+            open("/tmp/run.sh", "w").write("#!/bin/sh\necho escaped\n")
+            os.chmod("/tmp/run.sh", 0o755)
+            try:
+                subprocess.run(["/tmp/run.sh"], check=True, capture_output=True)
+                print(json.dumps({"exec": "ran"}))
+            except OSError as error:
+                print(json.dumps({"exec": type(error).__name__}))
+            """);
+
+        Assert.NotEqual("ran", report.GetProperty("exec").GetString());
+    }
+
+    /// <summary>A link left in /out comes back named, never followed, now that tar reads /out from inside the container.</summary>
+    [LiveFact]
+    public async Task Out_LinkToAFileOutside_IsNamedAndNotFollowed()
+    {
+        var outcome = await RunAsync("""
+            import os
+            open("/out/kept.txt", "w").write("kept")
+            os.symlink("/etc/passwd", "/out/passwd")
+            """);
+
+        Assert.Equal(["kept.txt"], outcome.Outputs.Select(file => file.Name));
+        Assert.Contains(outcome.Omitted, line => line.StartsWith("passwd", StringComparison.Ordinal));
     }
 
     /// <summary>Every run above removed its container; none is left for the sweep at the next start to find.</summary>

@@ -9,6 +9,9 @@ public sealed class LiveFactAttribute : FactAttribute
 {
     public const string RuntimeVariable = "SNAIL_SANDBOX_LIVE_RUNTIME";
 
+    /// <summary>The collection every live class joins: they share one daemon, and one class counting leftovers must not see another's run.</summary>
+    public const string Daemon = "live daemon";
+
     public LiveFactAttribute()
     {
         if (string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(RuntimeVariable)))

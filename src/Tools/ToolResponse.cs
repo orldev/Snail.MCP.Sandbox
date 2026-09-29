@@ -25,11 +25,20 @@ public static class ToolResponse
 
     public static CallToolResult From(Answer<Readiness> answer) =>
         answer.Value is { } readiness
-            ? Success(new JsonObject { ["dockerVersion"] = readiness.DockerVersion, ["runtime"] = readiness.Runtime, ["image"] = readiness.Image })
+            ? Success(new JsonObject
+            {
+                ["dockerVersion"] = readiness.DockerVersion,
+                ["runtime"] = readiness.Runtime,
+                ["image"] = readiness.Image,
+                ["untestable"] = new JsonArray([.. readiness.Untestable.Select(toolchain => (JsonNode)JsonNamingPolicy.CamelCase.ConvertName(toolchain.ToString()))])
+            })
             : Failure(answer.Error ?? "The sandbox was not diagnosed.", answer.Hint);
 
     public static CallToolResult From(Answer<RunOutcome> answer) =>
         answer.Value is { } outcome ? Success(outcome) : Failure(answer.Error ?? "The run did not happen.", answer.Hint);
+
+    public static CallToolResult From(Answer<TestReport> answer) =>
+        answer.Value is { } report ? Success(Data(report)) : Failure(answer.Error ?? "The tests did not run.", answer.Hint);
 
     public static CallToolResult Success(JsonObject data) => new()
     {
@@ -67,6 +76,35 @@ public static class ToolResponse
         ["files"] = new JsonArray([.. outcome.Outputs.Select(file => new JsonObject { ["name"] = file.Name, ["mediaType"] = file.MediaType, ["bytes"] = file.Bytes.Length })]),
         ["omitted"] = new JsonArray([.. outcome.Omitted.Select(reason => JsonValue.Create(reason))]),
         ["note"] = Note(outcome)
+    };
+
+    private static JsonObject Data(TestReport report) => new()
+    {
+        ["toolchain"] = report.Toolchain is { } toolchain ? JsonNamingPolicy.CamelCase.ConvertName(toolchain.ToString()) : null,
+        ["outcome"] = JsonNamingPolicy.CamelCase.ConvertName(report.Outcome.ToString()),
+        ["total"] = report.Counts?.Total,
+        ["passed"] = report.Counts?.Passed,
+        ["failed"] = report.Counts?.Failed,
+        ["skipped"] = report.Counts?.Skipped,
+        ["failures"] = new JsonArray([.. (report.Counts?.Failures ?? []).Select(failure => new JsonObject { ["name"] = failure.Name, ["message"] = failure.Message })]),
+        ["seconds"] = Math.Round(report.Duration.TotalSeconds, 2),
+        ["output"] = report.Output,
+        ["outputCut"] = report.IsOutputCut,
+        ["omitted"] = new JsonArray([.. report.Omitted.Select(reason => JsonValue.Create(reason))]),
+        ["network"] = report.Contacted is null ? null : new JsonArray([.. report.Contacted.Select(host => JsonValue.Create(host))]),
+        ["note"] = Note(report)
+    };
+
+    private static string? Note(TestReport report) => report.Outcome switch
+    {
+        TestOutcome.Failed => Messages.TestsFailed,
+        TestOutcome.BuildFailed => Messages.BuildFailed,
+        TestOutcome.RestoreFailed => Messages.RestoreFailed,
+        TestOutcome.TimedOut => Messages.TestsTimedOut,
+        TestOutcome.NoTests => Messages.NoTests,
+        TestOutcome.NothingToBuild => Messages.NothingToBuild,
+        _ when report.Omitted.Count > 0 => Messages.ProjectOmitted,
+        _ => null
     };
 
     private static string? Note(RunOutcome outcome) => outcome switch

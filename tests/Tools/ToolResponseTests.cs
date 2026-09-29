@@ -20,6 +20,26 @@ public sealed class ToolResponseTests
         Assert.Equal(Messages.Failed, Data(result).GetProperty("note").GetString());
     }
 
+    /// <summary>The model names a toolchain as sandbox_run_tests takes it, so an untestable one reads the same way.</summary>
+    [Fact]
+    public void From_NodeWithoutAToolchainImage_NamesItAsTheToolTakesIt()
+    {
+        var result = ToolResponse.From(Answer.Ok(new Readiness("29.1.0", "runsc", "snail/sandbox-python:latest") { Untestable = [Toolchain.Dotnet, Toolchain.Node] }));
+
+        Assert.Equal(["dotnet", "node"], Data(result).GetProperty("untestable").EnumerateArray().Select(name => name.GetString()));
+    }
+
+    /// <summary>The platform shows where a restore went; «none watched» and «went nowhere» must read differently.</summary>
+    [Fact]
+    public void From_TestReport_AnswersTheHostsTheRestoreReachedOrNullWhenNobodyWatched()
+    {
+        var watched = ToolResponse.From(Answer.Ok(new TestReport(Toolchain.Python, TestOutcome.Passed, TimeSpan.FromSeconds(3)) { Contacted = ["pypi.org", "files.pythonhosted.org"] }));
+        var unwatched = ToolResponse.From(Answer.Ok(new TestReport(Toolchain.Python, TestOutcome.Passed, TimeSpan.FromSeconds(3))));
+
+        Assert.Equal(["pypi.org", "files.pythonhosted.org"], Data(watched).GetProperty("network").EnumerateArray().Select(host => host.GetString()));
+        Assert.Equal(JsonValueKind.Null, Data(unwatched).GetProperty("network").ValueKind);
+    }
+
     [Fact]
     public void From_RunThatCouldNotHappen_IsAToolErrorWithItsHint()
     {

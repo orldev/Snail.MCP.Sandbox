@@ -1,4 +1,5 @@
-# The image a run executes in: Python 3.12 with the analysis libraries, owned by root, used by nobody.
+# The image a run executes in: Python 3.12 with the analysis libraries and pytest, owned by root, used by nobody.
+# A Python project's tests run here too, so the node holds one Python image, not two.
 # docker build -t snail/sandbox-python:latest -f deploy/executor/Dockerfile .
 #
 # Everything is installed here because nothing can be at run time: the container has no network. The

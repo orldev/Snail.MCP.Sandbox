@@ -35,6 +35,9 @@ public sealed class ToolIndex(SessionGrant grant)
         ["sandbox_run_python"] =
             "execute script compute calculate analyse chart plot graph figure table report convert parse "
             + "pandas numpy matplotlib duckdb openpyxl excel csv json dataframe statistics fit model",
+        ["sandbox_run_tests"] =
+            "test tests unit build compile verify green red failing passing ci restore pytest xunit nunit mstest jest "
+            + "npm dotnet solution csproj project suite regression",
         ["sandbox_diagnose"] =
             "health ready broken failing available runtime docker daemon image node check why",
         ["find_tool"] = "search discover name parameters arguments how"
