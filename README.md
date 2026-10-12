@@ -114,6 +114,39 @@ A sandbox node is a Linux host with Docker and gVisor:
    `latest`, so an image built on the node under that tag does not start. Then run the live suite under `runsc`
    (below); it passing is what turns this README's "under gVisor" from a design into a fact.
 
+## One host, without Nomad
+
+`deploy/compose.yml` brings the server up on a single Linux host that already has Docker and gVisor — steps 1
+and 2 above — and holds nothing worth taking. Copy it and `deploy/.env.example`, as `.env`, into one folder on
+that host, set `DOCKER_GID` to the group that owns the socket, and:
+
+```bash
+docker compose up -d
+```
+
+- **Only the server is a service that stays.** The container a run executes in is not in the file and cannot
+  be: the server creates one per call through the socket. The three services beside the server — `executor`,
+  `dotnet`, `node` — bring the images those containers start from onto the host, run nothing and exit; the
+  server starts after them. `executor` runs under the configured runtime, so a host whose Docker does not know
+  `runsc` fails at `up`, by name, instead of coming up and refusing every run.
+- **The port is published on loopback.** The server asks nobody who they are; set `PUBLISH_ADDRESS` to the
+  private address a reverse proxy or the platform reaches it at, never to a public one.
+- **Restores go through the proxy, by address.** The restore network is internal, with a subnet of its own,
+  and the server holds `.2` in it. Naming the server instead works under `runc` and fails under gVisor, where a
+  container does not reach Docker's name server: measured on runsc release-20260921.0, every restore ended
+  `restoreFailed` on a name it could not resolve. `RESTORE_SUBNET` moves the range when the host has it taken.
+- **`OBJECT_STORE`** is the one host input links may name. Left empty, programs that read no files still run
+  and every test run is refused.
+- **The images** come from the GitHub Container Registry, private with the repository — `docker login ghcr.io`
+  first — and are built for `linux/amd64`. `REGISTRY=snail` takes the ones built on the host instead.
+- **One server per Docker daemon** still holds. The platform's stand has an overlay of its own for this server
+  and creates a network of the same name; the two do not share a daemon.
+- `docker compose down` leaves the package volumes, `snail-sandbox-cache-*`: the server made them, not Compose.
+
+Run through this file on 4 October 2026, under `runc` on Docker 29.4 and under `runsc` on Docker 29.1:
+`sandbox_diagnose`, a program that found no network, and a Python test run whose restore reached `pypi.org`
+through the proxy. .NET and Node test runs were not.
+
 ## Contract with the platform
 
 - **Files go in by key.** The model passes the keys of its task's files as `list_objects` shows them. The

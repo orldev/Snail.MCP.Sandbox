@@ -1,0 +1,87 @@
+# Snail.MCP.Sandbox on one Linux host with Docker and gVisor, without Nomad: the server, and the images it runs code in.
+# Put this file and .env in one folder on that host, then: docker compose up -d
+# The host is the sandbox node of the README: runsc registered with Docker, and nothing on it worth taking.
+#
+# Only the server is a service that stays. The container a run executes in is not declared here and cannot be: the
+# server creates one per call through the Docker socket and removes it when the call ends. The three services
+# beside it exist to bring the images those containers start from onto the host, because the server never
+# downloads one; each runs nothing and exits.
+
+name: s3l-sandbox
+
+services:
+  # Named as the platform computes a server's host, mcp-<name>; the image is s3l-<name>-mcp.
+  mcp-sandbox:
+    image: ${REGISTRY:-ghcr.io/orldev}/s3l-sandbox-mcp:${SANDBOX_TAG:-latest}
+    container_name: s3l-sandbox-mcp
+    restart: unless-stopped
+    depends_on:
+      executor:
+        condition: service_completed_successfully
+      dotnet:
+        condition: service_completed_successfully
+      node:
+        condition: service_completed_successfully
+    ports:
+      # The server asks nobody who they are: whoever reaches this port runs code on the host's CPUs. Loopback
+      # unless told otherwise, and never the public address.
+      - "${PUBLISH_ADDRESS:-127.0.0.1}:${PUBLISH_PORT:-8826}:8826"
+    environment:
+      Snail__Runtime: ${RUNTIME:-runsc}
+      Snail__Image: ${REGISTRY:-ghcr.io/orldev}/sandbox-python:${SANDBOX_TAG:-latest}
+      # Empty admits no link at all, which leaves programs that read no files and refuses every test run.
+      Snail__AllowedHosts__0: ${OBJECT_STORE:-}
+      Snail__RestoreNetwork: ${RESTORE_NETWORK:-s3l-sandbox-restore}
+      # By address, not by name: under gVisor a container does not reach Docker's name server, measured on runsc
+      # release-20260921.0 — the name resolved under runc and failed under runsc, on the same network.
+      Snail__RestoreProxy: http://${RESTORE_SUBNET:-10.213.26}.2:3128
+      Snail__RestoreProxyPort: "3128"
+    # The image runs as its non-root user; the socket's group is what lets it in.
+    group_add:
+      - "${DOCKER_GID:?set DOCKER_GID in .env to the group that owns the socket: stat -c %g /var/run/docker.sock}"
+    volumes:
+      # Root on this host. Code a model writes never touches it, but the server does, which is why the host holds nothing else.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      default: {}
+      restore:
+        ipv4_address: ${RESTORE_SUBNET:-10.213.26}.2
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Started under the runtime the runs will use, so a host whose Docker does not know it fails here, at up, by name.
+  executor:
+    image: ${REGISTRY:-ghcr.io/orldev}/sandbox-python:${SANDBOX_TAG:-latest}
+    runtime: ${RUNTIME:-runsc}
+    command: ["python", "-c", "pass"]
+    network_mode: none
+    restart: "no"
+
+  # The toolchains a test run builds in. Without one, sandbox_diagnose names that toolchain untestable and the
+  # rest still work; take its service and its line under depends_on out together.
+  dotnet:
+    image: mcr.microsoft.com/dotnet/sdk:10.0
+    command: ["true"]
+    network_mode: none
+    restart: "no"
+
+  node:
+    image: node:22-bookworm-slim
+    command: ["true"]
+    network_mode: none
+    restart: "no"
+
+networks:
+  # Restore containers see only the server here: its proxy is their one way out, so the hosts it names are all of
+  # them. The server attaches them by this name, so it is fixed rather than prefixed with the project's.
+  restore:
+    name: ${RESTORE_NETWORK:-s3l-sandbox-restore}
+    internal: true
+    ipam:
+      config:
+        # The server sits at .2; restore containers are handed the upper half, so none is ever given its address.
+        - subnet: ${RESTORE_SUBNET:-10.213.26}.0/24
+          ip_range: ${RESTORE_SUBNET:-10.213.26}.128/25
