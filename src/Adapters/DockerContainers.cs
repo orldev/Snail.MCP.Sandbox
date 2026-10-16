@@ -32,6 +32,13 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
     /// <summary>How long reading /out back may take; tar over a tmpfs of tens of megabytes ends well within it.</summary>
     private static readonly TimeSpan CollectWait = TimeSpan.FromSeconds(30);
 
+    /// <summary>How long the daemon gets to say what it knows — its runtimes, its images — before the call is a refusal.</summary>
+    /// <remarks>
+    /// A daemon answers these from memory, in milliseconds. The client's own timeout is the longest test run plus its
+    /// grace, thirty-one minutes, and a diagnosis that waited that long on a hung daemon is a probe that never fails.
+    /// </remarks>
+    internal static readonly TimeSpan AnswerWait = TimeSpan.FromSeconds(5);
+
     /// <summary>The highest exit code of tar whose archive is whole: GNU tar answers 1 when a file changed while it read it.</summary>
     private const int ChangedWhileRead = 1;
 
@@ -41,7 +48,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
 
         try
         {
-            var system = await docker.System.GetSystemInfoAsync(cancellationToken);
+            var system = await SystemAsync(docker, cancellationToken);
             if (!system.Runtimes.ContainsKey(limits.Runtime))
                 return UnknownRuntime<RunOutcome>(logger, limits.Runtime, [.. system.Runtimes.Keys]);
 
@@ -50,6 +57,10 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
         catch (DockerImageNotFoundException)
         {
             return MissingImage<RunOutcome>(logger, limits.Image);
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            return NotAnswered<RunOutcome>(logger, exception, limits.DockerEndpoint);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -65,19 +76,26 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
     {
         var limits = options.Value;
 
+        using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        waiting.CancelAfter(AnswerWait);
+
         try
         {
-            var system = await docker.System.GetSystemInfoAsync(cancellationToken);
+            var system = await docker.System.GetSystemInfoAsync(waiting.Token).WaitAsync(waiting.Token);
             if (!system.Runtimes.ContainsKey(limits.Runtime))
                 return UnknownRuntime<Readiness>(logger, limits.Runtime, [.. system.Runtimes.Keys]);
 
-            await docker.Images.InspectImageAsync(limits.Image, cancellationToken);
+            await docker.Images.InspectImageAsync(limits.Image, waiting.Token).WaitAsync(waiting.Token);
 
-            return Answer.Ok(new Readiness(system.ServerVersion, limits.Runtime, limits.Image) { Untestable = await UntestableAsync(limits, cancellationToken) });
+            return Answer.Ok(new Readiness(system.ServerVersion, limits.Runtime, limits.Image) { Untestable = await UntestableAsync(limits, waiting.Token) });
         }
         catch (DockerImageNotFoundException)
         {
             return MissingImage<Readiness>(logger, limits.Image);
+        }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            return NotAnswered<Readiness>(logger, exception, limits.DockerEndpoint);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
@@ -98,7 +116,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
         {
             try
             {
-                await docker.Images.InspectImageAsync(TestCommands.Image(toolchain, limits), cancellationToken);
+                await docker.Images.InspectImageAsync(TestCommands.Image(toolchain, limits), cancellationToken).WaitAsync(cancellationToken);
             }
             catch (DockerImageNotFoundException)
             {
@@ -122,6 +140,26 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
         return Answer.Failed<T>(
             $"The sandbox node has no {runtime} runtime, and no code runs there until it has.",
             "Calling again will not help: the sandbox node is not set up. Say so in the answer.");
+    }
+
+    /// <summary>What the daemon knows of itself, answered within <see cref="AnswerWait"/> or not at all.</summary>
+    /// <remarks>Waited on as well as cancelled: the deadline holds even where the call does not honour its token.</remarks>
+    internal static async Task<SystemInfoResponse> SystemAsync(IDockerClient docker, CancellationToken cancellationToken)
+    {
+        using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        waiting.CancelAfter(AnswerWait);
+
+        return await docker.System.GetSystemInfoAsync(waiting.Token).WaitAsync(waiting.Token);
+    }
+
+    /// <summary>The refusal when the daemon did not say what it knows in time: the node, not the code, and not worth a second call.</summary>
+    internal static Answer<T> NotAnswered<T>(ILogger logger, Exception exception, string endpoint)
+    {
+        Log.DiagnosisNotAnswered(logger, exception, endpoint);
+
+        return Answer.Failed<T>(
+            $"The Docker daemon at {endpoint} did not answer within {AnswerWait.TotalSeconds}s.",
+            "The sandbox node's Docker daemon is hung or unreachable; calling again will not help until it answers. Say so in the answer.");
     }
 
     internal static Answer<T> MissingImage<T>(ILogger logger, string image)

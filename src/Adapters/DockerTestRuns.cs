@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Net;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using Microsoft.Extensions.Options;
@@ -16,7 +17,7 @@ namespace Snail.MCP.Sandbox.Adapters;
 /// the restore's error in worse words. The network the restore used is disconnected before the build and checked
 /// gone; a container still attached to one is removed without building anything.
 /// </remarks>
-public sealed class DockerTests(IDockerClient docker, IOptions<SandboxOptions> options, ILogger<DockerTests> logger, RestoreProxy? proxy = null) : ITestContainers
+public sealed class DockerTestRuns(IDockerClient docker, IOptions<SandboxOptions> options, ILogger<DockerTestRuns> logger, RestoreProxy? proxy = null) : ITestContainers
 {
     /// <summary>Most report files read back from one run: one per test project, so more than a run of programs returns.</summary>
     internal const int MaxReports = 200;
@@ -29,7 +30,7 @@ public sealed class DockerTests(IDockerClient docker, IOptions<SandboxOptions> o
 
         try
         {
-            var system = await docker.System.GetSystemInfoAsync(cancellationToken);
+            var system = await DockerContainers.SystemAsync(docker, cancellationToken);
             if (!system.Runtimes.ContainsKey(limits.Runtime))
                 return DockerContainers.UnknownRuntime<TestExecution>(logger, limits.Runtime, [.. system.Runtimes.Keys]);
 
@@ -41,6 +42,10 @@ public sealed class DockerTests(IDockerClient docker, IOptions<SandboxOptions> o
         {
             return DockerContainers.MissingImage<TestExecution>(logger, TestCommands.Image(toolchain, limits));
         }
+        catch (OperationCanceledException exception) when (!cancellationToken.IsCancellationRequested)
+        {
+            return DockerContainers.NotAnswered<TestExecution>(logger, exception, limits.DockerEndpoint);
+        }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
             Log.TestRunNotCompleted(logger, exception, limits.DockerEndpoint);
@@ -51,12 +56,19 @@ public sealed class DockerTests(IDockerClient docker, IOptions<SandboxOptions> o
         }
     }
 
-    /// <summary>Gives the toolchain's package volume to the run user, once per process.</summary>
+    /// <summary>Gives the toolchain's package volume to the run user: once per volume, not once per process.</summary>
+    /// <remarks>
+    /// A volume no container holds is what docker volume prune removes, and the one made in its place is root's again;
+    /// a restore that cannot write to it fails worded as the project's own packages being wrong, until the server
+    /// restarts. So a volume the process remembers handing over is looked at before each run, and handed over again
+    /// when it is gone.
+    /// </remarks>
     private async Task HandOverAsync(Toolchain toolchain, SandboxOptions limits, CancellationToken cancellationToken)
     {
-        if (_handedOver.ContainsKey(toolchain))
+        if (_handedOver.ContainsKey(toolchain) && await ExistsAsync(TestCommands.CacheVolume(toolchain, limits), cancellationToken))
             return;
 
+        _handedOver.TryRemove(toolchain, out _);
         var container = await docker.Containers.CreateContainerAsync(TestCommands.Handover(toolchain, limits), cancellationToken);
 
         try
@@ -73,6 +85,20 @@ public sealed class DockerTests(IDockerClient docker, IOptions<SandboxOptions> o
         }
 
         _handedOver[toolchain] = true;
+    }
+
+    private async Task<bool> ExistsAsync(string volume, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await docker.Volumes.InspectAsync(volume, cancellationToken);
+
+            return true;
+        }
+        catch (DockerApiException exception) when (exception.StatusCode is HttpStatusCode.NotFound)
+        {
+            return false;
+        }
     }
 
     private async Task<TestExecution> TestedAsync(PackedProject project, Toolchain toolchain, TimeSpan timeout, SandboxOptions limits, CancellationToken cancellationToken)

@@ -42,7 +42,7 @@ public sealed class SandboxSettingsTests
     [Fact]
     public void Read_ASettingsFile_ReachesTheOptions()
     {
-        var folder = Directory.CreateTempSubdirectory("snail-sandbox-settings-");
+        var folder = new DirectoryInfo(TestFolder.Create());
 
         try
         {
@@ -65,7 +65,7 @@ public sealed class SandboxSettingsTests
     [Fact]
     public void Read_AVariableAndTheSettingsFile_TheVariableWins()
     {
-        var folder = Directory.CreateTempSubdirectory("snail-sandbox-settings-");
+        var folder = new DirectoryInfo(TestFolder.Create());
 
         try
         {

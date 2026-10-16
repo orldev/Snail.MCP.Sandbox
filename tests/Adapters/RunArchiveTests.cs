@@ -9,7 +9,7 @@ public sealed class RunArchiveTests : IDisposable
 {
     private const UnixFileMode Writable = UnixFileMode.UserWrite | UnixFileMode.GroupWrite | UnixFileMode.OtherWrite;
 
-    private readonly string _folder = Directory.CreateTempSubdirectory("sandbox-tests-").FullName;
+    private readonly string _folder = TestFolder.Create();
 
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 

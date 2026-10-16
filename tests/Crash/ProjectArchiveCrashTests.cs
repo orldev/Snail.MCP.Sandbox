@@ -9,7 +9,7 @@ public sealed class ProjectArchiveCrashTests : IDisposable
 {
     private static readonly Owner RunUser = new(65534, 65534);
 
-    private readonly string _folder = Directory.CreateTempSubdirectory("sandbox-project-crash-").FullName;
+    private readonly string _folder = TestFolder.Create();
 
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 

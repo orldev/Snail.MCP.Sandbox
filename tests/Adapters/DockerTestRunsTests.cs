@@ -15,9 +15,9 @@ namespace Snail.MCP.Sandbox.Tests.Adapters;
 /// A project restored, built and tested as stages of one container: a failed stage stops the run, the restore network
 /// is gone before the build, the package volume is handed over once, and the container is removed whatever happened.
 /// </summary>
-public sealed class DockerTestsTests : IDisposable
+public sealed class DockerTestRunsTests : IDisposable
 {
-    private readonly string _folder = Directory.CreateTempSubdirectory("sandbox-docker-tests-").FullName;
+    private readonly string _folder = TestFolder.Create();
 
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 
@@ -172,7 +172,7 @@ public sealed class DockerTestsTests : IDisposable
         var options = new SandboxOptions { WorkRoot = _folder, RestoreProxy = "http://mcp-sandbox:3128", RestoreProxyPort = 3128 };
         var proxy = new RestoreProxy(Options.Create(options), NullLogger<RestoreProxy>.Instance);
 
-        var execution = (await new DockerTests(daemon.Client, Options.Create(options), NullLogger<DockerTests>.Instance, proxy).TestAsync(await ProjectAsync(), Toolchain.Dotnet, TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
+        var execution = (await new DockerTestRuns(daemon.Client, Options.Create(options), NullLogger<DockerTestRuns>.Instance, proxy).TestAsync(await ProjectAsync(), Toolchain.Dotnet, TimeSpan.FromSeconds(5), CancellationToken.None)).Value!;
 
         Assert.Contains(environments[0], variable => variable.StartsWith("HTTPS_PROXY=http://", StringComparison.Ordinal) && variable.EndsWith("@mcp-sandbox:3128", StringComparison.Ordinal));
         Assert.All(environments.Skip(1), environment => Assert.DoesNotContain(environment, variable => variable.Contains("PROXY", StringComparison.OrdinalIgnoreCase)));
@@ -191,8 +191,8 @@ public sealed class DockerTestsTests : IDisposable
         Assert.Null(execution.Contacted);
     }
 
-    private DockerTests Tests(Daemon daemon, SandboxOptions? options = null) =>
-        new(daemon.Client, Options.Create(options ?? new SandboxOptions { WorkRoot = _folder }), NullLogger<DockerTests>.Instance);
+    private DockerTestRuns Tests(Daemon daemon, SandboxOptions? options = null) =>
+        new(daemon.Client, Options.Create(options ?? new SandboxOptions { WorkRoot = _folder }), NullLogger<DockerTestRuns>.Instance);
 
     private async Task<PackedProject> ProjectAsync()
     {
@@ -212,6 +212,7 @@ public sealed class DockerTestsTests : IDisposable
             .Answer("CreateContainerAsync", _ => Task.FromResult(new CreateContainerResponse { ID = "test-1", Warnings = [] }))
             .Answer("StartContainerAsync", _ => Task.FromResult(true))
             .Answer("WaitContainerAsync", _ => Task.FromResult(new ContainerWaitResponse { StatusCode = 0 }))
+            .Answer("InspectAsync", _ => Task.FromResult(new VolumeResponse()))
             .Answer("ExtractArchiveToContainerAsync", _ => Task.CompletedTask)
             .Answer("InspectContainerAsync", _ => Task.FromResult(Attached()))
             .Answer("CreateContainerExecAsync", _ => Task.FromResult(new ContainerExecCreateResponse { ID = "exec-1" }))

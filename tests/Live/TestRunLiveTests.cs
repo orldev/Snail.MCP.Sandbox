@@ -23,7 +23,7 @@ public sealed class TestRunLiveTests : IDisposable
 {
     private static readonly string Runtime = Environment.GetEnvironmentVariable(LiveFactAttribute.RuntimeVariable) ?? string.Empty;
 
-    private readonly string _folder = Directory.CreateTempSubdirectory("sandbox-live-tests-").FullName;
+    private readonly string _folder = TestFolder.Create();
 
     private readonly DockerClient _docker = new DockerClientBuilder().WithEndpoint(new Uri(new SandboxOptions().DockerEndpoint)).WithTimeout(TimeSpan.FromMinutes(20)).Build();
 
@@ -171,7 +171,7 @@ public sealed class TestRunLiveTests : IDisposable
         var runs = new TestRuns(
             new LocalInputs(),
             new TarProjectArchives(Options.Create(options)),
-            new DockerTests(_docker, Options.Create(options), NullLogger<DockerTests>.Instance),
+            new DockerTestRuns(_docker, Options.Create(options), NullLogger<DockerTestRuns>.Instance),
             Options.Create(options));
 
         var answer = await runs.RunAsync(new Uri(archive).AbsoluteUri, null, 900, CancellationToken.None);

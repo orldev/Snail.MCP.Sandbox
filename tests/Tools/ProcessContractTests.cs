@@ -3,7 +3,6 @@ using System.Net;
 using System.Net.Sockets;
 using ModelContextProtocol.Client;
 using Snail.Sdk.Mcp.Hosting;
-using Snail.Sdk.Mcp.Testing;
 
 namespace Snail.MCP.Sandbox.Tests.Tools;
 
@@ -22,7 +21,7 @@ public sealed class ProcessContractTests : IAsyncLifetime
 
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
 
-    private readonly string _workRoot = Directory.CreateTempSubdirectory("sandbox-process-").FullName;
+    private readonly string _workRoot = TestFolder.Create();
     private readonly Uri _address = new($"http://127.0.0.1:{FreePort()}");
     private Process _server = default!;
 

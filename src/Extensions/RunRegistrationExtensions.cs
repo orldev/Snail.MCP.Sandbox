@@ -55,7 +55,7 @@ public static class RunRegistrationExtensions
             services.AddSingleton<IContainers, DockerContainers>();
             services.AddSingleton<RestoreProxy>();
             services.AddHostedService(provider => provider.GetRequiredService<RestoreProxy>());
-            services.AddSingleton<ITestContainers, DockerTests>();
+            services.AddSingleton<ITestContainers, DockerTestRuns>();
             services.AddSingleton<IProjectArchives, TarProjectArchives>();
             services.TryAddEnumerable(ServiceDescriptor.Singleton<IHostedService, LeftoverContainers>());
 

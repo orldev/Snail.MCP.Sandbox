@@ -1,3 +1,4 @@
+using System.Text;
 using Microsoft.Extensions.Options;
 using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
@@ -13,6 +14,9 @@ namespace Snail.MCP.Sandbox.Adapters;
 /// </remarks>
 public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptions> options) : IInputs
 {
+    /// <summary>The most bytes a file name may take on the node's disk: ext4's and tmpfs's limit, in bytes of UTF-8, not characters.</summary>
+    private const int LongestName = 255;
+
     public async Task<Answer<IReadOnlyList<InputFile>>> FetchAsync(IReadOnlyList<Uri> links, string folder, CancellationToken cancellationToken)
     {
         var limits = options.Value;
@@ -70,16 +74,46 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
             var unescaped = Uri.UnescapeDataString(link.Segments.LastOrDefault() ?? string.Empty).Replace('\\', '/');
             var bare = Path.GetFileName(unescaped.TrimEnd('/'));
             var safe = string.Concat(bare.Select(character => char.IsControl(character) || character is ':' ? '_' : character));
-            var candidate = safe is "" or "." or ".." ? "input" : safe;
+            var candidate = Fitted(safe is "" or "." or ".." ? "input" : safe);
             var name = candidate;
 
             for (var copy = 2; !taken.Add(name); copy++)
-                name = $"{Path.GetFileNameWithoutExtension(candidate)} ({copy}){Path.GetExtension(candidate)}";
+                name = Fitted(candidate, $" ({copy})");
 
             names.Add(name);
         }
 
         return names;
+    }
+
+    /// <summary>The name within what a file name may take, its suffix and extension kept and its stem cut; the extension goes too when it alone is past the limit.</summary>
+    private static string Fitted(string candidate, string suffix = "")
+    {
+        var extension = Path.GetExtension(candidate);
+        var stem = Path.GetFileNameWithoutExtension(candidate);
+        var room = LongestName - Encoding.UTF8.GetByteCount(suffix) - Encoding.UTF8.GetByteCount(extension);
+
+        return room > 0
+            ? $"{Cut(stem, room)}{suffix}{extension}"
+            : $"{Cut(candidate, LongestName - Encoding.UTF8.GetByteCount(suffix))}{suffix}";
+    }
+
+    /// <summary>The text's leading characters that fit in the bytes, whole characters only.</summary>
+    private static string Cut(string text, int bytes)
+    {
+        var kept = new StringBuilder();
+        var used = 0;
+
+        foreach (var rune in text.EnumerateRunes())
+        {
+            used += rune.Utf8SequenceLength;
+            if (used > bytes)
+                break;
+
+            kept.Append(rune.ToString());
+        }
+
+        return kept.ToString();
     }
 
     private async Task<Answer<long>> DownloadAsync(Uri link, string path, long fileLimit, long totalLeft, CancellationToken cancellationToken)

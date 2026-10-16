@@ -13,6 +13,11 @@ namespace Snail.MCP.Sandbox.Application;
 /// only one — it answers over HTTP and never as a child process — so an abstraction over two shapes
 /// would be ceremony with a single implementation. A session that names no tool may use them all.
 /// </para>
+/// <para>
+/// The grant is read from the request a call arrives on, not from the one that opened the session: a client sends
+/// every call to the address it was registered with, so the two are the same, and it is the client — the platform —
+/// that holds the address, never the model.
+/// </para>
 /// </remarks>
 public sealed class SessionGrant(IHttpContextAccessor requests)
 {

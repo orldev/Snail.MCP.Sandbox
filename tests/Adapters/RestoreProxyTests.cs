@@ -26,7 +26,7 @@ public sealed class RestoreProxyTests : IAsyncLifetime
         _ = EchoAsync();
 
         int port = FreePort();
-        _proxy = new RestoreProxy(Options.Create(new SandboxOptions { RestoreProxy = $"http://127.0.0.1:{port}", RestoreProxyPort = port }), NullLogger<RestoreProxy>.Instance);
+        _proxy = new RestoreProxy(Options.Create(new SandboxOptions { RestoreProxy = $"http://127.0.0.1:{port}", RestoreProxyPort = port, RestoreHosts = ["127.0.0.1", "localhost"] }), NullLogger<RestoreProxy>.Instance);
         await _proxy.StartAsync(_stopping.Token);
 
         for (var waited = 0; _proxy.Port == 0 && waited < 50; waited++)

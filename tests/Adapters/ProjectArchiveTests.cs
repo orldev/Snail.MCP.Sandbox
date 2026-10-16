@@ -15,7 +15,7 @@ public sealed class ProjectArchiveTests : IDisposable
 
     private static readonly ProjectLimits Roomy = new(1024 * 1024, 100);
 
-    private readonly string _folder = Directory.CreateTempSubdirectory("sandbox-project-").FullName;
+    private readonly string _folder = TestFolder.Create();
 
     public void Dispose() => Directory.Delete(_folder, recursive: true);
 

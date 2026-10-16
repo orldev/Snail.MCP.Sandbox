@@ -24,8 +24,8 @@ public sealed partial class SandboxOptionsValidation : IValidateOptions<SandboxO
         else if (user.Groups["uid"].Value.TrimStart('0') is "")
             failures.Add("SNAIL_MCP_SANDBOX_USER must not be root.");
 
-        if (options.MemoryBytes <= 0 || options.Cpus <= 0 || options.Pids <= 0 || options.MaxConcurrentRuns <= 0)
-            failures.Add("SNAIL_MCP_SANDBOX_MEMORY_BYTES, SNAIL_MCP_SANDBOX_CPUS, SNAIL_MCP_SANDBOX_PIDS and SNAIL_MCP_SANDBOX_MAX_CONCURRENT_RUNS must all be positive: an unset limit is no limit.");
+        if (options.MemoryBytes <= 0 || !IsALimit(options.Cpus) || options.Pids <= 0 || options.MaxConcurrentRuns <= 0)
+            failures.Add("SNAIL_MCP_SANDBOX_MEMORY_BYTES, SNAIL_MCP_SANDBOX_CPUS, SNAIL_MCP_SANDBOX_PIDS and SNAIL_MCP_SANDBOX_MAX_CONCURRENT_RUNS must all be positive numbers: an unset limit is no limit.");
 
         if (options.OutputLimitBytes <= 0 || options.OutFolderBytes <= 0 || options.TmpFolderBytes <= 0 || options.MaxOutputFiles <= 0)
             failures.Add("SNAIL_MCP_SANDBOX_OUTPUT_LIMIT_BYTES, SNAIL_MCP_SANDBOX_OUT_FOLDER_BYTES, SNAIL_MCP_SANDBOX_TMP_FOLDER_BYTES and SNAIL_MCP_SANDBOX_MAX_OUTPUT_FILES must all be positive.");
@@ -48,8 +48,8 @@ public sealed partial class SandboxOptionsValidation : IValidateOptions<SandboxO
         if (options.RestoreProxyPort is < 0 or > 65535)
             failures.Add("SNAIL_MCP_SANDBOX_RESTORE_PROXY_PORT must be a port, or 0 to keep the proxy off.");
 
-        if (options.TestMemoryBytes <= 0 || options.TestCpus <= 0 || options.TestPids <= 0 || options.TestTmpFolderBytes <= 0 || options.MaxConcurrentTestRuns <= 0)
-            failures.Add("SNAIL_MCP_SANDBOX_TEST_MEMORY_BYTES, SNAIL_MCP_SANDBOX_TEST_CPUS, SNAIL_MCP_SANDBOX_TEST_PIDS, SNAIL_MCP_SANDBOX_TEST_TMP_FOLDER_BYTES and SNAIL_MCP_SANDBOX_MAX_CONCURRENT_TEST_RUNS must all be positive.");
+        if (options.TestMemoryBytes <= 0 || !IsALimit(options.TestCpus) || options.TestPids <= 0 || options.TestTmpFolderBytes <= 0 || options.MaxConcurrentTestRuns <= 0)
+            failures.Add("SNAIL_MCP_SANDBOX_TEST_MEMORY_BYTES, SNAIL_MCP_SANDBOX_TEST_CPUS, SNAIL_MCP_SANDBOX_TEST_PIDS, SNAIL_MCP_SANDBOX_TEST_TMP_FOLDER_BYTES and SNAIL_MCP_SANDBOX_MAX_CONCURRENT_TEST_RUNS must all be positive numbers.");
 
         if (options.DefaultTestTimeoutSeconds <= 0 || options.MaxTestTimeoutSeconds < options.DefaultTestTimeoutSeconds)
             failures.Add("SNAIL_MCP_SANDBOX_DEFAULT_TEST_TIMEOUT_SECONDS must be positive and not above SNAIL_MCP_SANDBOX_MAX_TEST_TIMEOUT_SECONDS.");
@@ -59,6 +59,14 @@ public sealed partial class SandboxOptionsValidation : IValidateOptions<SandboxO
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
+
+    /// <summary>Whether a CPU count limits anything: positive and finite.</summary>
+    /// <remarks>
+    /// The binder reads NaN and Infinity as numbers, and neither is below zero. Measured on .NET 10: NaN cast to
+    /// nanoseconds of CPU is 0, which the daemon takes as no limit at all, so the run would be unconfined under a
+    /// setting that claims otherwise. Infinity saturates to a value the daemon refuses, which at least fails loudly.
+    /// </remarks>
+    private static bool IsALimit(double cpus) => double.IsFinite(cpus) && cpus > 0;
 
     [GeneratedRegex(@"^\s*(host|container:.*)\s*$", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
     private static partial Regex SharedNetwork();

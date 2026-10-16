@@ -81,10 +81,13 @@ tested in the executor image, which carries pytest. Nothing is built for the san
   for that deployment; change the default.
 - **The restore stage runs project code with a network.** MSBuild targets, npm install scripts and a setup.py all
   run during a restore. `RestoreNetwork` is `none` by default, so a restore reads only what the package volume
-  already holds; a deployment that gives it a network should give it one that reaches only a package mirror.
+  already holds; a deployment that gives it a network should give it one that reaches only a package mirror. Through
+  the proxy a restore reaches what the server reaches, less the node itself: loopback, link-local and private
+  addresses are refused unless `SNAIL_MCP_SANDBOX_RESTORE_HOSTS__*` names the host, and the refused host is still
+  answered in `network`.
 - **The package volume is shared by every run of a toolchain on the node.** A project can leave a package in it
   that the next project's restore picks up from the cache. The volumes are named by `CacheVolumePrefix`, and
-  removing them costs only the next restore's download.
+  removing them costs only the next restore's download: a volume found gone is made and handed over again.
 - **Node runs write no report this sandbox reads**, so a Node answer has an outcome from the exit code and no counts.
 - **Outputs are held in memory** while an answer is built: at most twice the size of `/out` per run.
 - `/dev/shm` is Docker's default 64 MB tmpfs and is writable by the run; it is memory, not disk, and ends with
@@ -215,6 +218,7 @@ start on settings that confine less than they claim: an empty runtime, a root or
 | `SNAIL_MCP_SANDBOX_RESTORE_NETWORK` | Docker network the restore stage fetches packages over; never `host` or `container:` | `none` — restore from the package volume only |
 | `SNAIL_MCP_SANDBOX_RESTORE_PROXY` | The restore proxy's address as a restore container reaches it, such as `http://mcp-sandbox:3128`; every host a restore asks for is answered as `network` | none — the proxy is off, `network` is `null` |
 | `SNAIL_MCP_SANDBOX_RESTORE_PROXY_PORT` | Port the restore proxy listens on inside the server, set together with `SNAIL_MCP_SANDBOX_RESTORE_PROXY` | `0` |
+| `SNAIL_MCP_SANDBOX_RESTORE_HOSTS__0` | Hosts the proxy reaches though their address is loopback, link-local or private — a package mirror on the node's own network; `__0`, `__1`… A public address needs no naming | none — public addresses only |
 | `SNAIL_MCP_SANDBOX_CACHE_VOLUME_PREFIX` | Prefix of the package volumes, one per toolchain | `snail-sandbox-cache` |
 | `SNAIL_MCP_SANDBOX_TEST_MEMORY_BYTES` | Memory of one test run, with no swap on top | `2147483648` |
 | `SNAIL_MCP_SANDBOX_TEST_CPUS` | CPUs of one test run | `2.0` |

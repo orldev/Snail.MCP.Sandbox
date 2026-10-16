@@ -14,7 +14,7 @@ namespace Snail.MCP.Sandbox.Tests.Adapters;
 
 public sealed class DockerContainersTests : IDisposable
 {
-    private readonly string _workRoot = Path.Combine(Path.GetTempPath(), $"sandbox-tests-{Guid.NewGuid():n}");
+    private readonly string _workRoot = Path.Combine(TestFolder.Create(), "work");
 
     public void Dispose()
     {

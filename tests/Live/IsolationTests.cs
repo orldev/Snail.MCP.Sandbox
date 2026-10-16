@@ -24,7 +24,7 @@ public sealed class IsolationTests : IDisposable
         ? image
         : new SandboxOptions().Image;
 
-    private readonly string _folder = Directory.CreateTempSubdirectory("sandbox-live-").FullName;
+    private readonly string _folder = TestFolder.Create();
 
     private readonly DockerClient _docker = new DockerClientBuilder().WithEndpoint(new Uri(new SandboxOptions().DockerEndpoint)).Build();
 

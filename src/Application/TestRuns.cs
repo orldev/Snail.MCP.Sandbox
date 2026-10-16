@@ -10,6 +10,8 @@ namespace Snail.MCP.Sandbox.Application;
 /// was due, a toolchain this sandbox does not have, a timeout outside the limit. An archive with nothing to build is
 /// an answer rather than a refusal — it is what a project without code looks like, and the caller says so to the human.
 /// Test runs take places of their own, apart from program runs, because one build holds four times the memory.
+/// The archive is fetched into a folder of its own under the run's: the rewritten one is named project.tar, and a
+/// key may well end in the same name.
 /// </remarks>
 public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestContainers containers, IOptions<SandboxOptions> options) : IDisposable
 {
@@ -57,7 +59,7 @@ public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestCon
 
     private async Task<Answer<TestReport>> TestedAsync(Uri link, Toolchain? named, TimeSpan timeout, string folder, CancellationToken cancellationToken)
     {
-        var fetched = await inputs.FetchAsync([link], folder, cancellationToken);
+        var fetched = await inputs.FetchAsync([link], Path.Combine(folder, "in"), cancellationToken);
         if (fetched.Value is not [var archive])
             return Answer.Failed<TestReport>(fetched.Error ?? "The project was not fetched.", fetched.Hint);
 

@@ -20,6 +20,7 @@ public sealed class Daemon
         var exec = Proxy<IExecOperations>();
         var images = Proxy<IImageOperations>();
         var networks = Proxy<INetworkOperations>();
+        var volumes = Proxy<IVolumeOperations>();
 
         Client = Proxy<IDockerClient>();
         _answers["get_System"] = _ => system;
@@ -27,6 +28,7 @@ public sealed class Daemon
         _answers["get_Exec"] = _ => exec;
         _answers["get_Images"] = _ => images;
         _answers["get_Networks"] = _ => networks;
+        _answers["get_Volumes"] = _ => volumes;
     }
 
     public IDockerClient Client { get; }

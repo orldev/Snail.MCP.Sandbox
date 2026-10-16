@@ -7,7 +7,7 @@ namespace Snail.MCP.Sandbox.Tests.Adapters;
 
 public sealed class LinkInputsTests : IDisposable
 {
-    private readonly string _folder = Path.Combine(Path.GetTempPath(), $"sandbox-tests-{Guid.NewGuid():n}");
+    private readonly string _folder = Path.Combine(TestFolder.Create(), "inputs");
 
     public void Dispose()
     {

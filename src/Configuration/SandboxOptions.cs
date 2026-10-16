@@ -98,6 +98,14 @@ public sealed class SandboxOptions
     /// <summary>Port the restore proxy listens on inside the server; 0 keeps it off.</summary>
     public int RestoreProxyPort { get; set; }
 
+    /// <summary>Hosts a restore may reach through the proxy though their address is the node's own: a package mirror on the private network.</summary>
+    /// <remarks>
+    /// The proxy connects out from the server's own network, where the node's gateway and the cluster's APIs are, so a
+    /// restore script could reach anything the server does. An address that is loopback, link-local or private is
+    /// refused unless its host is named here; a public address needs no naming.
+    /// </remarks>
+    public string[] RestoreHosts { get; set; } = [];
+
     /// <summary>Prefix of the volumes packages are kept in between test runs, one per toolchain.</summary>
     public string CacheVolumePrefix { get; set; } = "snail-sandbox-cache";
 

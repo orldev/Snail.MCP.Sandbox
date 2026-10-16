@@ -15,7 +15,9 @@ namespace Snail.MCP.Sandbox.Adapters;
 /// goes nowhere. So the restore is handed this proxy in its environment, with the run's own name as credentials, and
 /// the proxy records the host of every request under that run. Where the restore network reaches nothing but the
 /// proxy, the list is exact; on an open network, a program that ignores the proxy goes around it, so it is a lower bound.
-/// A request without the name of a run being watched is refused.
+/// A request without the name of a run being watched is refused, and so is one for an address of the server's own
+/// network — loopback, link-local, private — unless the deployment names the host as a mirror: the proxy connects out
+/// from where the node's gateway and the cluster's APIs are reachable, and a restore script must not.
 /// </remarks>
 public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<RestoreProxy> logger) : BackgroundService
 {
@@ -101,7 +103,13 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
                 }
 
                 watched.Saw(request.Host);
-                await ForwardAsync(stream, request, head, cancellationToken);
+                if (await ReachableAsync(request.Host, options.Value.RestoreHosts, cancellationToken) is not { } addresses)
+                {
+                    await RefuseAsync(stream, "403 Forbidden", cancellationToken);
+                    return;
+                }
+
+                await ForwardAsync(client, request, head, addresses, cancellationToken);
             }
             catch (Exception exception) when (exception is IOException or SocketException or OperationCanceledException)
             {
@@ -110,21 +118,78 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
         }
     }
 
-    /// <summary>Connects to the host the request names and passes bytes both ways until either side is done.</summary>
-    private static async Task ForwardAsync(NetworkStream stream, Request request, byte[] head, CancellationToken cancellationToken)
+    /// <summary>The addresses the host resolves to, or null when one of them is inside and the host is not named.</summary>
+    /// <remarks>
+    /// Resolved once, and the connection goes to what was resolved rather than to the name again: a name that answers a
+    /// public address to this question and a private one a moment later gains nothing by it.
+    /// </remarks>
+    private static async Task<IPAddress[]?> ReachableAsync(string host, IReadOnlyCollection<string> named, CancellationToken cancellationToken)
+    {
+        IPAddress[] resolved = IPAddress.TryParse(host, out var literal) ? [literal] : await Dns.GetHostAddressesAsync(host, cancellationToken);
+
+        if (named.Contains(host, StringComparer.OrdinalIgnoreCase))
+            return resolved;
+
+        return resolved.Length > 0 && resolved.All(IsOutside) ? resolved : null;
+    }
+
+    /// <summary>Whether an address is on the internet rather than on the node, its link or its private network.</summary>
+    private static bool IsOutside(IPAddress address)
+    {
+        var plain = address.IsIPv4MappedToIPv6 ? address.MapToIPv4() : address;
+
+        if (IPAddress.IsLoopback(plain) || plain.Equals(IPAddress.Any) || plain.Equals(IPAddress.IPv6Any) || plain.IsIPv6LinkLocal || plain.IsIPv6UniqueLocal || plain.IsIPv6SiteLocal)
+            return false;
+
+        if (plain.AddressFamily != AddressFamily.InterNetwork)
+            return true;
+
+        var bytes = plain.GetAddressBytes();
+        var isPrivate = bytes[0] == 10
+            || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+            || (bytes[0] == 192 && bytes[1] == 168)
+            || (bytes[0] == 169 && bytes[1] == 254)
+            || (bytes[0] == 100 && bytes[1] is >= 64 and <= 127);
+
+        return !isPrivate;
+    }
+
+    /// <summary>Connects to the addresses the host resolved to and passes bytes both ways until both sides are done.</summary>
+    /// <remarks>
+    /// Each direction ends on its own: a side that has said everything half-closes the other, and the answer still
+    /// comes back. Ending the tunnel at the first direction to finish cut off a reply a client had already asked for
+    /// and said nothing more about, and left the other copy failing on a stream closed under it.
+    /// </remarks>
+    private static async Task ForwardAsync(TcpClient client, Request request, byte[] head, IPAddress[] addresses, CancellationToken cancellationToken)
     {
         using var upstream = new TcpClient();
-        await upstream.ConnectAsync(request.Host, request.Port, cancellationToken);
+        await upstream.ConnectAsync(addresses, request.Port, cancellationToken);
+        NetworkStream near = client.GetStream();
         NetworkStream far = upstream.GetStream();
 
         if (request.IsTunnel)
-            await stream.WriteAsync("HTTP/1.1 200 Connection established\r\n\r\n"u8.ToArray(), cancellationToken);
+            await near.WriteAsync("HTTP/1.1 200 Connection established\r\n\r\n"u8.ToArray(), cancellationToken);
         else
             await far.WriteAsync(request.Forwarded(head), cancellationToken);
 
-        Task outbound = stream.CopyToAsync(far, cancellationToken);
-        Task inbound = far.CopyToAsync(stream, cancellationToken);
-        await Task.WhenAny(outbound, inbound);
+        using var ending = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        Task outbound = PassAsync(near, far, upstream.Client, ending);
+        Task inbound = PassAsync(far, near, client.Client, ending);
+        await Task.WhenAll(outbound, inbound);
+    }
+
+    /// <summary>Copies one direction to its end, then tells the far side there is no more; a direction that breaks ends the other.</summary>
+    private static async Task PassAsync(NetworkStream source, NetworkStream target, Socket targetSocket, CancellationTokenSource ending)
+    {
+        try
+        {
+            await source.CopyToAsync(target, ending.Token);
+            targetSocket.Shutdown(SocketShutdown.Send);
+        }
+        catch (Exception exception) when (exception is IOException or SocketException or ObjectDisposedException)
+        {
+            await ending.CancelAsync();
+        }
     }
 
     /// <summary>The request's head up to the blank line; null when the client said nothing or said too much.</summary>
@@ -146,8 +211,12 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
         return null;
     }
 
-    private static Task RefuseAsync(NetworkStream stream, string status, CancellationToken cancellationToken) =>
-        stream.WriteAsync(Encoding.ASCII.GetBytes($"HTTP/1.1 {status}\r\nProxy-Authenticate: Basic realm=\"sandbox\"\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"), cancellationToken).AsTask();
+    private static Task RefuseAsync(NetworkStream stream, string status, CancellationToken cancellationToken)
+    {
+        var challenge = status.StartsWith("407", StringComparison.Ordinal) ? "Proxy-Authenticate: Basic realm=\"sandbox\"\r\n" : string.Empty;
+
+        return stream.WriteAsync(Encoding.ASCII.GetBytes($"HTTP/1.1 {status}\r\n{challenge}Content-Length: 0\r\nConnection: close\r\n\r\n"), cancellationToken).AsTask();
+    }
 
     /// <summary>The hosts one run asked for, each once, in the order it first asked.</summary>
     internal sealed class Watched

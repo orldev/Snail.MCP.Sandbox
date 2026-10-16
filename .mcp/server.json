@@ -151,6 +151,11 @@
           "default": "0"
         },
         {
+          "name": "SNAIL_MCP_SANDBOX_RESTORE_HOSTS__0",
+          "description": "Hosts the proxy reaches though their address is loopback, link-local or private, such as a package mirror on the node's own network; further hosts as __1, __2…. A public address needs no naming.",
+          "isRequired": false
+        },
+        {
           "name": "SNAIL_MCP_SANDBOX_CACHE_VOLUME_PREFIX",
           "description": "Prefix of the package volumes, one per toolchain.",
           "isRequired": false,

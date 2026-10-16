@@ -34,7 +34,7 @@ public sealed class TestRunsCrashTests
 
         await Assert.ThrowsAsync<InvalidOperationException>(() => runs.RunAsync(Link, null, null, CancellationToken.None));
 
-        Assert.Equal(inputs.Folders, inputs.Discarded);
+        Assert.All(inputs.Folders, fetched => Assert.Contains(inputs.Discarded, discarded => fetched.StartsWith(discarded, StringComparison.Ordinal)));
     }
 
     /// <summary>Breaks the place: a call cancelled while waiting for a place gives nothing back it did not take.</summary>
