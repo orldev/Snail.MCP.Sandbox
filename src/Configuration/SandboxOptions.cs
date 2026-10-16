@@ -7,8 +7,6 @@ namespace Snail.MCP.Sandbox.Configuration;
 /// </remarks>
 public sealed class SandboxOptions
 {
-    public const string SectionName = "Snail";
-
     /// <summary>Container runtime the code runs under; the daemon must know it, or the server refuses to run anything.</summary>
     /// <remarks>
     /// runsc is gVisor: a kernel in user space between the code and the host's own. Falling back to the default

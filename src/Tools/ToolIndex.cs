@@ -50,17 +50,13 @@ public sealed class ToolIndex(SessionGrant grant)
     public IReadOnlyList<ToolEntry> Find(string? task, int limit)
     {
         var visible = Visible;
+        var scored = visible.Select(entry => (Entry: entry, Score: Vocabulary.Score(task ?? string.Empty, entry.Name, Meant(entry.Name), entry.Description)));
+        var answering = scored.Where(candidate => candidate.Score > 0);
+        var ranked = answering
+            .OrderByDescending(candidate => candidate.Score)
+            .ThenBy(candidate => candidate.Entry.Name, StringComparer.Ordinal);
 
-        return
-        [
-            .. visible
-                .Select(entry => (Entry: entry, Score: Vocabulary.Score(task ?? string.Empty, entry.Name, Meant(entry.Name), entry.Description)))
-                .Where(scored => scored.Score > 0)
-                .OrderByDescending(scored => scored.Score)
-                .ThenBy(scored => scored.Entry.Name, StringComparer.Ordinal)
-                .Take(Math.Clamp(limit, 1, Math.Max(visible.Count, 1)))
-                .Select(scored => scored.Entry)
-        ];
+        return [.. ranked.Take(Math.Clamp(limit, 1, Math.Max(visible.Count, 1))).Select(candidate => candidate.Entry)];
     }
 
     /// <summary>The answer <c>find_tool</c> gives: what matched, or the whole catalog when nothing did.</summary>
@@ -114,10 +110,10 @@ public sealed class ToolIndex(SessionGrant grant)
     private static ToolEntry Entry(MethodInfo tool) => new(
         tool.GetCustomAttribute<McpServerToolAttribute>()!.Name!,
         tool.GetCustomAttribute<DescriptionAttribute>()?.Description ?? string.Empty,
-        [.. tool.GetParameters().Where(Fillable).Select(Argument)]);
+        [.. tool.GetParameters().Where(IsFillable).Select(Argument)]);
 
     /// <summary>The parameters the model fills; the cancellation token is the SDK's to fill.</summary>
-    private static bool Fillable(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);
+    private static bool IsFillable(ParameterInfo parameter) => parameter.ParameterType != typeof(CancellationToken);
 
     private static ToolArgument Argument(ParameterInfo parameter) => new(
         parameter.Name!,

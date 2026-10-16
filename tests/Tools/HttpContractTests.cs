@@ -22,7 +22,7 @@ public sealed class HttpContractTests(SandboxServer factory) : IClassFixture<San
         using var http = factory.CreateClient();
         await using var session = await SessionAsync(http);
 
-        Assert.Equal("snail-sandbox", session.ServerInfo.Name);
+        Assert.Equal("s3l-mcp-sandbox", session.ServerInfo.Name);
         Assert.Contains("no network", session.ServerInstructions, StringComparison.Ordinal);
     }
 

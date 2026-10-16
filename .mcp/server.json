@@ -1,0 +1,225 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-10-17/server.schema.json",
+  "name": "io.github.orldev/snail-mcp-sandbox",
+  "description": "Runs model-written Python and project tests in a throwaway container: no network, hard limits.",
+  "version": "0.1.0",
+  "packages": [
+    {
+      "registryType": "nuget",
+      "identifier": "Snail.MCP.Sandbox",
+      "version": "0.1.0",
+      "transport": {
+        "type": "streamable-http",
+        "url": "http://127.0.0.1:8826/mcp"
+      },
+      "packageArguments": [],
+      "environmentVariables": [
+        {
+          "name": "SNAIL_MCP_SANDBOX_RUNTIME",
+          "description": "Container runtime the code runs under; the daemon must know it.",
+          "isRequired": false,
+          "default": "runsc"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_IMAGE",
+          "description": "Image the code runs in.",
+          "isRequired": false,
+          "default": "snail/sandbox-python:latest"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_DOCKER_ENDPOINT",
+          "description": "Docker Engine API of the node.",
+          "isRequired": false,
+          "default": "unix:///var/run/docker.sock"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_USER",
+          "description": "Numeric uid:gid the code runs as; never root.",
+          "isRequired": false,
+          "default": "65534:65534"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MEMORY_BYTES",
+          "description": "Memory of one run, with no swap on top.",
+          "isRequired": false,
+          "default": "536870912"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_CPUS",
+          "description": "CPUs of one run.",
+          "isRequired": false,
+          "default": "1.0"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_PIDS",
+          "description": "Processes and threads of one run at once.",
+          "isRequired": false,
+          "default": "128"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_CONCURRENT_RUNS",
+          "description": "Runs on the node at once.",
+          "isRequired": false,
+          "default": "4"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_DEFAULT_TIMEOUT_SECONDS",
+          "description": "Seconds a run gets when the call names none.",
+          "isRequired": false,
+          "default": "60"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_TIMEOUT_SECONDS",
+          "description": "Most seconds a call may ask for.",
+          "isRequired": false,
+          "default": "300"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_OUTPUT_LIMIT_BYTES",
+          "description": "Bytes kept of stdout and of stderr each: half from the start, half from the end.",
+          "isRequired": false,
+          "default": "65536"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_OUT_FOLDER_BYTES",
+          "description": "Size of /out.",
+          "isRequired": false,
+          "default": "33554432"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_TMP_FOLDER_BYTES",
+          "description": "Size of /tmp.",
+          "isRequired": false,
+          "default": "67108864"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_OUTPUT_FILES",
+          "description": "Files returned from /out.",
+          "isRequired": false,
+          "default": "10"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_INPUT_FILES",
+          "description": "Files one call may pass.",
+          "isRequired": false,
+          "default": "20"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_INPUT_BYTES",
+          "description": "Largest input file.",
+          "isRequired": false,
+          "default": "67108864"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_INPUT_TOTAL_BYTES",
+          "description": "All input files of one call.",
+          "isRequired": false,
+          "default": "268435456"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_ALLOWED_HOSTS__0",
+          "description": "Hosts input links may point at, as host or host:port; further hosts as __1, __2…. None by default: every link is refused.",
+          "isRequired": false
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_DOTNET_IMAGE",
+          "description": "Image a .NET project is built and tested in.",
+          "isRequired": false,
+          "default": "mcr.microsoft.com/dotnet/sdk:10.0"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_NODE_IMAGE",
+          "description": "Image a Node project is built and tested in.",
+          "isRequired": false,
+          "default": "node:22-bookworm-slim"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_RESTORE_NETWORK",
+          "description": "Docker network the restore stage fetches packages over; never host or container:.",
+          "isRequired": false,
+          "default": "none"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_RESTORE_PROXY",
+          "description": "The restore proxy's address as a restore container reaches it, such as http://mcp-sandbox:3128; every host a restore asks for is answered as network. Unset, the proxy is off.",
+          "isRequired": false
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_RESTORE_PROXY_PORT",
+          "description": "Port the restore proxy listens on inside the server, set together with SNAIL_MCP_SANDBOX_RESTORE_PROXY.",
+          "isRequired": false,
+          "default": "0"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_CACHE_VOLUME_PREFIX",
+          "description": "Prefix of the package volumes, one per toolchain.",
+          "isRequired": false,
+          "default": "snail-sandbox-cache"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_TEST_MEMORY_BYTES",
+          "description": "Memory of one test run, with no swap on top.",
+          "isRequired": false,
+          "default": "2147483648"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_TEST_CPUS",
+          "description": "CPUs of one test run.",
+          "isRequired": false,
+          "default": "2.0"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_TEST_PIDS",
+          "description": "Processes and threads of one test run at once.",
+          "isRequired": false,
+          "default": "1024"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_TEST_TMP_FOLDER_BYTES",
+          "description": "Size of /tmp in a test run.",
+          "isRequired": false,
+          "default": "268435456"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_CONCURRENT_TEST_RUNS",
+          "description": "Test runs on the node at once, apart from program runs.",
+          "isRequired": false,
+          "default": "2"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_DEFAULT_TEST_TIMEOUT_SECONDS",
+          "description": "Seconds a test run gets when the call names none, restore and build included.",
+          "isRequired": false,
+          "default": "600"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_TEST_TIMEOUT_SECONDS",
+          "description": "Most seconds a call may ask for a test run.",
+          "isRequired": false,
+          "default": "1800"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_PROJECT_BYTES",
+          "description": "Most bytes a project may unpack to.",
+          "isRequired": false,
+          "default": "268435456"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_PROJECT_FILES",
+          "description": "Most files a project may hold.",
+          "isRequired": false,
+          "default": "20000"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_WORK_ROOT",
+          "description": "Folder on the server's own disk where inputs wait for the copy into the container. The temp folder when unset.",
+          "isRequired": false
+        }
+      ]
+    }
+  ],
+  "repository": {
+    "url": "https://github.com/orldev/Snail.MCP.Sandbox",
+    "source": "github"
+  }
+}

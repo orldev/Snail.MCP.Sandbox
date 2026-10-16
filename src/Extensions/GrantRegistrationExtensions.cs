@@ -1,4 +1,5 @@
 using ModelContextProtocol.Protocol;
+using ModelContextProtocol.Server;
 using Snail.MCP.Sandbox.Application;
 
 namespace Snail.MCP.Sandbox.Extensions;
@@ -16,21 +17,24 @@ public static class GrantRegistrationExtensions
         /// </remarks>
         public IMcpServerBuilder RefuseWhatWasNotGranted()
         {
-            builder.WithRequestFilters(filters => filters.AddCallToolFilter(next => async (context, cancellationToken) =>
-            {
-                var grant = context.Server.Services?.GetService<SessionGrant>();
-
-                if (context.Params?.Name is not { } name || grant is null || grant.Allows(name))
-                    return await next(context, cancellationToken);
-
-                return new CallToolResult
-                {
-                    IsError = true,
-                    Content = [new TextContentBlock { Text = grant.Refusal(name) }]
-                };
-            }));
+            builder.WithRequestFilters(filters => filters.AddCallToolFilter(Granted));
 
             return builder;
         }
     }
+
+    private static McpRequestHandler<CallToolRequestParams, CallToolResult> Granted(McpRequestHandler<CallToolRequestParams, CallToolResult> next) =>
+        async (context, cancellationToken) =>
+        {
+            var grant = context.Server.Services?.GetService<SessionGrant>();
+
+            if (context.Params?.Name is not { } name || grant is null || grant.Allows(name))
+                return await next(context, cancellationToken);
+
+            return new CallToolResult
+            {
+                IsError = true,
+                Content = [new TextContentBlock { Text = grant.Refusal(name) }]
+            };
+        };
 }

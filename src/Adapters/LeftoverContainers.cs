@@ -21,11 +21,11 @@ public sealed class LeftoverContainers(IDockerClient docker, ILogger<LeftoverCon
                 await docker.Containers.RemoveContainerAsync(container.ID, Confinement.Removal, cancellationToken);
 
             if (leftovers.Count > 0)
-                logger.LogWarning("Removed {Count} run containers left by an earlier process of this server", leftovers.Count);
+                Log.LeftoversRemoved(logger, leftovers.Count);
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            logger.LogWarning(exception, "Leftover run containers were not swept; the Docker daemon did not answer");
+            Log.LeftoversNotSwept(logger, exception);
         }
     }
 

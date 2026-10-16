@@ -15,8 +15,8 @@ public sealed partial class ComposeTests
     [Fact]
     public void Server_EverySetting_IsOneTheServerReads()
     {
-        var known = typeof(SandboxOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(setting => setting.Name);
-        var given = Setting().Matches(Compose).Select(match => match.Groups["name"].Value).ToList();
+        var known = typeof(SandboxOptions).GetProperties(BindingFlags.Public | BindingFlags.Instance).Select(setting => setting.Name.ToUpperInvariant());
+        var given = Setting().Matches(Compose).Select(match => Snail.Sdk.Mcp.Hosting.EnvironmentSettings.ToConfigurationKey(match.Groups["name"].Value)).ToList();
 
         Assert.NotEmpty(given);
         Assert.All(given, name => Assert.Contains(name, known));
@@ -35,7 +35,7 @@ public sealed partial class ComposeTests
     /// <summary>The server attaches a restore container by name, so the name it is given is the one the internal network is created under.</summary>
     [Fact]
     public void Server_RestoreNetwork_IsTheInternalNetworkComposeCreates() =>
-        Assert.Contains($"    name: {Value("Snail__RestoreNetwork")}\n    internal: true", Compose, StringComparison.Ordinal);
+        Assert.Contains($"    name: {Value("SNAIL_MCP_SANDBOX_RESTORE_NETWORK")}\n    internal: true", Compose, StringComparison.Ordinal);
 
     /// <summary>
     /// By address, not by name: under runsc release-20260921.0 a restore container did not resolve the service's
@@ -43,11 +43,11 @@ public sealed partial class ComposeTests
     /// </summary>
     [Fact]
     public void Server_RestoreProxy_IsTheAddressAndThePortTheServerHolds() =>
-        Assert.Equal($"http://{Value("ipv4_address")}:{Value("Snail__RestoreProxyPort")}", Value("Snail__RestoreProxy"));
+        Assert.Equal($"http://{Value("ipv4_address")}:{Value("SNAIL_MCP_SANDBOX_RESTORE_PROXY_PORT")}", Value("SNAIL_MCP_SANDBOX_RESTORE_PROXY"));
 
     [Fact]
     public void Executor_Image_IsTheOneTheServerRunsCodeIn() =>
-        Assert.Contains($"\n    image: {Value("Snail__Image")}\n", Compose, StringComparison.Ordinal);
+        Assert.Contains($"\n    image: {Value("SNAIL_MCP_SANDBOX_IMAGE")}\n", Compose, StringComparison.Ordinal);
 
     /// <summary>The server is told of no test image here, so the ones brought onto the host have to be its defaults.</summary>
     [Fact]
@@ -58,6 +58,7 @@ public sealed partial class ComposeTests
         Assert.All([defaults.DotnetImage, defaults.NodeImage], image => Assert.Contains($"\n    image: {image}\n", Compose, StringComparison.Ordinal));
     }
 
+    /// <summary>The server's image is named by the shared image workflow from the repository; every other one by its job.</summary>
     [Fact]
     public void Images_BuiltHere_AreNamedAsTheWorkflowPushesThem()
     {
@@ -65,7 +66,7 @@ public sealed partial class ComposeTests
         var built = BuiltImage().Matches(Compose).Select(match => match.Groups["name"].Value).Distinct().ToList();
 
         Assert.NotEmpty(built);
-        Assert.All(built, name => Assert.Contains($"- image: {name}\n", workflow, StringComparison.Ordinal));
+        Assert.All(built, name => Assert.True(name == "s3l-sandbox-mcp" || workflow.Contains($"image: {name}\n", StringComparison.Ordinal), name));
     }
 
     /// <summary>The example is what an operator copies; a variable missing there is one they learn of from a failed start.</summary>
@@ -86,7 +87,7 @@ public sealed partial class ComposeTests
             .Trim()
             .Trim('"');
 
-    [GeneratedRegex(@"Snail__(?<name>[A-Za-z]+)", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"SNAIL_MCP_SANDBOX_(?<name>[A-Z_]+?)(?:__\d+)?:", RegexOptions.CultureInvariant)]
     private static partial Regex Setting();
 
     [GeneratedRegex(@"ASPNETCORE_HTTP_PORTS=(?<port>\d+)", RegexOptions.CultureInvariant)]

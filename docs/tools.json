@@ -1,0 +1,10 @@
+{
+  "intro": [
+    "An MCP server over streamable HTTP that runs Python a model wrote, or a whole project's build and tests, in a container made for that one call, with no network, a read-only root, no capabilities and hard limits, under gVisor.",
+    "`sandbox_run_python` takes the whole program, the task's files it reads, and how long it may take; `sandbox_run_tests` takes a project as a tar or tar.gz of its working folder and restores, builds and tests it; `sandbox_diagnose` runs nothing and says whether the node could."
+  ],
+  "families": [
+    { "type": "RunTools", "slug": "run", "title": "Running code and tests in a sandbox" },
+    { "type": "DiscoveryTools", "slug": "discovery", "title": "Finding a tool" }
+  ]
+}

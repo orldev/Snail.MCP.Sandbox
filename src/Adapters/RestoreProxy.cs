@@ -52,7 +52,7 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
         _listener = new TcpListener(IPAddress.Any, options.Value.RestoreProxyPort);
         _listener.Start();
         Port = ((IPEndPoint)_listener.LocalEndpoint).Port;
-        logger.LogInformation("Restores reach the network through the proxy on port {Port}", Port);
+        Log.ProxyListening(logger, Port);
 
         try
         {
@@ -69,6 +69,13 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
         {
             _listener.Stop();
         }
+    }
+
+    /// <summary>Releases the listener with the service; it was stopped already when the service stopped.</summary>
+    public override void Dispose()
+    {
+        _listener?.Dispose();
+        base.Dispose();
     }
 
     private async Task ServeAsync(TcpClient client, CancellationToken cancellationToken)
@@ -98,7 +105,7 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
             }
             catch (Exception exception) when (exception is IOException or SocketException or OperationCanceledException)
             {
-                logger.LogDebug(exception, "A restore's connection through the proxy ended");
+                Log.ProxyConnectionEnded(logger, exception);
             }
         }
     }

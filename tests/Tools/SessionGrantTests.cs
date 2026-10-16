@@ -7,9 +7,9 @@ using ModelContextProtocol.Server;
 namespace Snail.MCP.Sandbox.Tests.Tools;
 
 /// <summary>
-/// Белый список роли платформа проверяет у себя, но сервер — единственное место, которое нельзя обойти.
-/// Здесь пересылающих инструментов нет, поэтому дыры и нет; выдача соблюдается всё равно, потому что
-/// флот, где один сервер список игнорирует, — это флот, где список значит «обычно».
+/// The platform checks a role's allow list on its side, but the server is the one place that cannot be gone around.
+/// No tool here forwards calls, so there is no hole; the grant is kept all the same, because
+/// a fleet where one server ignores the list is a fleet where the list means "usually".
 /// </summary>
 public sealed class SessionGrantTests(SandboxServer factory) : IClassFixture<SandboxServer>
 {
@@ -35,9 +35,9 @@ public sealed class SessionGrantTests(SandboxServer factory) : IClassFixture<San
     }
 
     /// <summary>
-    /// Выданный инструмент доходит до самого себя. Ответить он может и отказом — в этой фикстуре узел
-    /// без runsc, и sandbox_diagnose честно про это говорит, — но отказ выдачи выглядит иначе, и именно
-    /// это здесь и проверяется: не «получилось», а «дошло».
+    /// A granted tool reaches itself. It may well answer with a refusal — in this fixture the node
+    /// has no runsc, and sandbox_diagnose says so — but a refusal of the grant looks different, and that
+    /// is what is checked here: not "it worked" but "it got through".
     /// </summary>
     [Fact]
     public async Task A_granted_tool_reaches_itself()
@@ -47,7 +47,7 @@ public sealed class SessionGrantTests(SandboxServer factory) : IClassFixture<San
         Assert.DoesNotContain("was not granted", await DiagnoseAsync(client), StringComparison.Ordinal);
     }
 
-    /// <summary>Сессия, не назвавшая инструментов, пользуется всеми: пустой список и значил «всё».</summary>
+    /// <summary>A session that named no tools uses all of them: an empty list always meant "everything".</summary>
     [Fact]
     public async Task A_session_that_names_no_tool_may_use_them_all()
     {
@@ -64,8 +64,8 @@ public sealed class SessionGrantTests(SandboxServer factory) : IClassFixture<San
     }
 
     /// <summary>
-    /// Имя инструмента — часть договора наружу. Префикс носит тот, кто назван предметом сервера; механика
-    /// флота (find_tool, run_tools, run_program) префикса не носит, и здесь её просто нет.
+    /// A tool's name is part of the contract with the outside. The prefix is worn by what is named after the server's subject;
+    /// the fleet's mechanics (find_tool, run_tools, run_program) wear none, and here there are simply none of them.
     /// </summary>
     [Fact]
     public void Every_tool_is_named_after_what_this_server_is_for()

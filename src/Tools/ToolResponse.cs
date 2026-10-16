@@ -67,7 +67,7 @@ public static class ToolResponse
     private static JsonObject Data(RunOutcome outcome) => new()
     {
         ["exitCode"] = outcome.ExitCode,
-        ["timedOut"] = outcome.TimedOut,
+        ["timedOut"] = outcome.HasTimedOut,
         ["seconds"] = Math.Round(outcome.Duration.TotalSeconds, 2),
         ["stdout"] = outcome.Stdout,
         ["stderr"] = outcome.Stderr,
@@ -109,7 +109,7 @@ public static class ToolResponse
 
     private static string? Note(RunOutcome outcome) => outcome switch
     {
-        { TimedOut: true } => Messages.TimedOut,
+        { HasTimedOut: true } => Messages.TimedOut,
         { ExitCode: 137 } => Messages.Killed,
         { ExitCode: not 0 } => Messages.Failed,
         { Omitted.Count: > 0 } => Messages.Omitted,

@@ -53,7 +53,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            logger.LogWarning(exception, "A run did not complete through the Docker daemon at {Endpoint}", limits.DockerEndpoint);
+            Log.RunNotCompleted(logger, exception, limits.DockerEndpoint);
 
             return Answer.Failed<RunOutcome>(
                 $"The sandbox could not run the code: {exception.Message}",
@@ -81,7 +81,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            logger.LogWarning(exception, "The Docker daemon at {Endpoint} did not answer a diagnosis", limits.DockerEndpoint);
+            Log.DiagnosisNotAnswered(logger, exception, limits.DockerEndpoint);
 
             return Answer.Failed<Readiness>(
                 $"The Docker daemon at {limits.DockerEndpoint} did not answer: {exception.Message}",
@@ -102,7 +102,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
             }
             catch (DockerImageNotFoundException)
             {
-                logger.LogWarning("The node holds no {Image}; {Toolchain} projects cannot be tested", TestCommands.Image(toolchain, limits), toolchain);
+                Log.ToolchainImageMissing(logger, TestCommands.Image(toolchain, limits), toolchain);
                 untestable.Add(toolchain);
             }
         }
@@ -117,7 +117,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
     /// </remarks>
     internal static Answer<T> UnknownRuntime<T>(ILogger logger, string runtime, IReadOnlyList<string> known)
     {
-        logger.LogError("The Docker daemon has no runtime {Runtime}, only {Known}; every run is refused", runtime, string.Join(", ", known));
+        Log.RuntimeMissing(logger, runtime, string.Join(", ", known));
 
         return Answer.Failed<T>(
             $"The sandbox node has no {runtime} runtime, and no code runs there until it has.",
@@ -126,7 +126,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
 
     internal static Answer<T> MissingImage<T>(ILogger logger, string image)
     {
-        logger.LogWarning("Image {Image} is not on this node; every run fails until it is", image);
+        Log.ImageMissing(logger, image);
 
         return Answer.Failed<T>(
             $"The image {image} is not on the sandbox node, and no code runs there until it is.",
@@ -140,7 +140,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
         try
         {
             foreach (var warning in container.Warnings ?? [])
-                logger.LogWarning("Docker warned while creating {Container}: {Warning}", container.ID, warning);
+                Log.CreationWarned(logger, container.ID, warning);
 
             await PlaceAsync(container.ID, code, inputs, limits, cancellationToken);
             await docker.Containers.StartContainerAsync(container.ID, new ContainerStartParameters(), cancellationToken);
@@ -179,9 +179,9 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
 
         if (exec.ExitCode is null)
         {
-            logger.LogInformation("A run in {Container} passed its {Seconds}s and was killed", containerId, timeout.TotalSeconds);
+            Log.RunKilled(logger, containerId, timeout.TotalSeconds);
 
-            return new RunOutcome(null, exec.Stdout.Text, exec.Stderr.Text, exec.Duration) { TimedOut = true, IsStdoutCut = exec.Stdout.IsCut, IsStderrCut = exec.Stderr.IsCut };
+            return new RunOutcome(null, exec.Stdout.Text, exec.Stderr.Text, exec.Duration) { HasTimedOut = true, IsStdoutCut = exec.Stdout.IsCut, IsStderrCut = exec.Stderr.IsCut };
         }
 
         var collected = await CollectAsync(docker, containerId, limits, limits.MaxOutputFiles, cancellationToken);
@@ -403,17 +403,17 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
         }
         catch (DockerApiException exception) when (exception.StatusCode is HttpStatusCode.NotFound or HttpStatusCode.Conflict)
         {
-            logger.LogDebug("Container {Container} was already gone or being removed", containerId);
+            Log.ContainerAlreadyGone(logger, containerId);
         }
         catch (Exception exception)
         {
-            logger.LogWarning(exception, "Container {Container} was not removed; it stops itself when its own clock runs out", containerId);
+            Log.ContainerNotRemoved(logger, exception, containerId);
         }
     }
 
     /// <summary>Keeps a reading task that is being abandoned from surfacing its failure as an unobserved exception.</summary>
     private static void Observe(Task abandoned) =>
-        abandoned.ContinueWith(static task => task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
+        _ = abandoned.ContinueWith(static task => task.Exception, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted, TaskScheduler.Default);
 }
 
 /// <summary>How one command in a container ended: its exit code, null when it was still running at its time limit, and what it printed.</summary>

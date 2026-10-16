@@ -1,23 +1,30 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+    <Sdk Name="Snail.Sdk.Mcp" />
+
+    <!--
+        Framework-dependent and HTTP only (Snail.Sdk.Mcp): the server runs in its own container on a sandbox node, beside
+        the Docker daemon it starts runs through, and answers the workers of the platform at its port.
+    -->
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
-        <LangVersion>latest</LangVersion>
-        <ImplicitUsings>enable</ImplicitUsings>
-        <Nullable>enable</Nullable>
-        <InvariantGlobalization>true</InvariantGlobalization>
-        <RootNamespace>Snail.MCP.Sandbox</RootNamespace>
+        <SnailMcpNative>false</SnailMcpNative>
+        <SnailMcpTransport>Http</SnailMcpTransport>
+        <SnailMcpContainer>true</SnailMcpContainer>
+    </PropertyGroup>
+
+    <PropertyGroup>
         <Version>0.1.0</Version>
         <Description>MCP server over streamable HTTP that runs Python written by a model in a throwaway container with no network, a read-only root and hard limits; built for Snail.Swarm.Agent, runs as the Nomad job mcp-sandbox on a node of class sandbox.</Description>
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Docker.DotNet.Enhanced" Version="4.3.3"/>
-        <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0"/>
+        <PackageReference Include="Docker.DotNet.Enhanced"/>
+        <PackageReference Include="ModelContextProtocol.AspNetCore"/>
     </ItemGroup>
 
     <ItemGroup>
         <InternalsVisibleTo Include="Snail.MCP.Sandbox.Tests"/>
+        <InternalsVisibleTo Include="Snail.MCP.Sandbox.Benchmarks"/>
     </ItemGroup>
 
 </Project>

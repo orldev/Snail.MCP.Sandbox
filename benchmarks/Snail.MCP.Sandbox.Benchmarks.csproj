@@ -1,0 +1,15 @@
+<Project Sdk="Snail.Sdk">
+
+    <PropertyGroup>
+        <RootNamespace>Snail.MCP.Sandbox.Benchmarks</RootNamespace>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="BenchmarkDotNet"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\src\Snail.MCP.Sandbox.csproj"/>
+    </ItemGroup>
+
+</Project>

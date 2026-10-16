@@ -73,7 +73,7 @@ public sealed class ToolResponseTests
 
     [Fact]
     public void From_RunKilledAtItsTimeout_SaysNothingFromOutCameBack() =>
-        Assert.Equal(Messages.TimedOut, Data(ToolResponse.From(Answer.Ok(Ran with { ExitCode = null, TimedOut = true }))).GetProperty("note").GetString());
+        Assert.Equal(Messages.TimedOut, Data(ToolResponse.From(Answer.Ok(Ran with { ExitCode = null, HasTimedOut = true }))).GetProperty("note").GetString());
 
     [Fact]
     public void From_RunKilledForItsMemory_SaysSo() =>

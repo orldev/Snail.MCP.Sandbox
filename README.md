@@ -36,7 +36,7 @@ nothing, and a sequence of runs shares nothing between its steps — every run g
 | The node | A node of its own class that holds nothing worth taking: no workers, no working copies, no tokens. Outbound traffic only to the object store. This is deployment, not code — see [The sandbox node](#the-sandbox-node). |
 | The kernel | `runsc` (gVisor), a kernel in user space between the program and the host's. The runtime is checked on **every** run; a daemon that does not know it gets a refusal, never a quiet run under `runc`. |
 | The container | Network `none`; read-only root; every capability dropped, bounding set included; `no-new-privileges`; user `65534:65534`; memory with no swap on top; CPU; processes; `/tmp` 64 MB, `noexec`. Created for one run, used for one exec, removed in a `finally`. |
-| Files in | Signed links only, only from hosts in `AllowedHosts`, no redirects followed, size counted while reading rather than trusted from the header. Copied into the container owned by root and read-only; the downloads are deleted when the call ends, whatever happened. |
+| Files in | Signed links only, only from hosts in `SNAIL_MCP_SANDBOX_ALLOWED_HOSTS__*`, no redirects followed, size counted while reading rather than trusted from the header. Copied into the container owned by root and read-only; the downloads are deleted when the call ends, whatever happened. |
 | Files out | `/out` is a tmpfs of the container itself, 32 MB, owned by the run user alone, `noexec`. It is read back by `tar` run in the container as that user, the archive held to twice the tmpfs size; up to 10 files come back, links and special files are named, never followed. |
 | The node's share | At most 4 runs at once; a call past that waits for a place. Every other limit is per run. |
 
@@ -62,7 +62,7 @@ tested in the executor image, which carries pytest. Nothing is built for the san
 - **The server holds the Docker socket, which is root on the node.** Code a model writes never touches it —
   it runs in the containers — but a flaw in the server itself is a flaw on the node. That is the reason the
   node is a class of its own and holds nothing else.
-- **Without gVisor, a kernel exploit reaches the host.** Setting `Runtime` to `runc` gives exactly that, and
+- **Without gVisor, a kernel exploit reaches the host.** Setting `SNAIL_MCP_SANDBOX_RUNTIME` to `runc` gives exactly that, and
   every other layer still holds. It is a setting for checking the rest of the confinement on a laptop, not for
   running work.
 - **`noexec` stops a program, not an interpreter.** `/out` and `/tmp` refuse to execute a file written there —
@@ -152,7 +152,7 @@ through the proxy. .NET and Node test runs were not.
 - **Files go in by key.** The model passes the keys of its task's files as `list_objects` shows them. The
   worker, not the model, replaces each key with a signed link good for minutes, and only for keys the task's
   own journal names. A key that reaches this server unsigned is refused with a hint saying so.
-  `AllowedHosts` names the object store's address.
+  `SNAIL_MCP_SANDBOX_ALLOWED_HOSTS__0` names the object store's address.
 - **The answer.** The first content block is JSON: `ok`, and under `data` the `exitCode` (null when the run was
   killed at its timeout), `timedOut`, `seconds`, `stdout`, `stderr`, whether each was cut, the `files` by name,
   media type and size, what was `omitted` and why, and a `note` on how the run ended. Then every file as an
@@ -174,51 +174,58 @@ through the proxy. .NET and Node test runs were not.
   and failed is `ok: true` with a non-zero `exitCode`; exit code 137 is almost always the memory limit.
 - **The job.** Port 8826. The socket mounted at `/var/run/docker.sock`, and the socket's group — the node's
   `meta.docker_gid` — added to the container, since the image runs as its non-root `app` user. Settings as
-  environment variables below; `AllowedHosts` must name the object store exactly as the workers reach it, because
+  environment variables below, or in the settings file; `SNAIL_MCP_SANDBOX_ALLOWED_HOSTS__*` must name the object store exactly as the workers reach it, because
   a link is signed for that host.
 
 ## Configure
 
-Every setting lives in the `Snail` section; as an environment variable, `Snail__Runtime` and so on. The server
-refuses to start on settings that confine less than they claim: an empty runtime, a root or non-numeric user,
-a limit of zero.
+The settings come from the settings file and from the environment variables under `SNAIL_MCP_SANDBOX_`, and a
+variable wins over the file. Nothing else is read — no `appsettings.json`, no unprefixed variable: one of whoever
+started the server that happens to share a name is not a setting of it. A file named in `$SNAIL_MCP_SANDBOX_CONFIG` is
+the only settings file read, and when it is missing no file is; otherwise the settings file is the first of these that
+exists: `./.s3l-mcp-sandbox.json`, `./s3l-mcp-sandbox.json`, `~/.config/s3l-mcp-sandbox/config.json`,
+`~/.s3l-mcp-sandbox.json`. A machine's settings belong in `~/.config/s3l-mcp-sandbox/config.json` (`chmod 600`), never
+in a launchd job or in a client's registration, which travel wherever they are copied; in a container, the variables of
+the job stay the way to set it. The file's fields are the variables' names after the prefix, a double underscore
+nesting — `{ "Image": "snail/sandbox-python:latest", "AllowedHosts": ["objects.example:9000"] }`. The server refuses to
+start on settings that confine less than they claim: an empty runtime, a root or non-numeric user, a limit of zero.
 
-| Setting | Meaning | Default |
+| Variable | Meaning | Default |
 | --- | --- | --- |
-| `Runtime` | Container runtime the code runs under; the daemon must know it | `runsc` |
-| `Image` | Image the code runs in | `snail/sandbox-python:latest` |
-| `DockerEndpoint` | Docker Engine API of the node | `unix:///var/run/docker.sock` |
-| `User` | Numeric `uid:gid` the code runs as; never root | `65534:65534` |
-| `MemoryBytes` | Memory of one run, with no swap on top | `536870912` |
-| `Cpus` | CPUs of one run | `1.0` |
-| `Pids` | Processes and threads of one run at once | `128` |
-| `MaxConcurrentRuns` | Runs on the node at once | `4` |
-| `DefaultTimeoutSeconds` | Seconds a run gets when the call names none | `60` |
-| `MaxTimeoutSeconds` | Most seconds a call may ask for | `300` |
-| `OutputLimitBytes` | Bytes kept of stdout and of stderr each: half from the start, half from the end | `65536` |
-| `OutFolderBytes` | Size of `/out` | `33554432` |
-| `TmpFolderBytes` | Size of `/tmp` | `67108864` |
-| `MaxOutputFiles` | Files returned from `/out` | `10` |
-| `MaxInputFiles` | Files one call may pass | `20` |
-| `MaxInputBytes` | Largest input file | `67108864` |
-| `MaxInputTotalBytes` | All input files of one call | `268435456` |
-| `AllowedHosts` | Hosts input links may point at, as `host` or `host:port`; `AllowedHosts__0`, `__1`… | none — every link refused |
-| `DotnetImage` | Image a .NET project is built and tested in | `mcr.microsoft.com/dotnet/sdk:10.0` |
-| `NodeImage` | Image a Node project is built and tested in | `node:22-bookworm-slim` |
-| `RestoreNetwork` | Docker network the restore stage fetches packages over; never `host` or `container:` | `none` — restore from the package volume only |
-| `RestoreProxy` | The restore proxy's address as a restore container reaches it, such as `http://mcp-sandbox:3128`; every host a restore asks for is answered as `network` | none — the proxy is off, `network` is `null` |
-| `RestoreProxyPort` | Port the restore proxy listens on inside the server, set together with `RestoreProxy` | `0` |
-| `CacheVolumePrefix` | Prefix of the package volumes, one per toolchain | `snail-sandbox-cache` |
-| `TestMemoryBytes` | Memory of one test run, with no swap on top | `2147483648` |
-| `TestCpus` | CPUs of one test run | `2.0` |
-| `TestPids` | Processes and threads of one test run at once | `1024` |
-| `TestTmpFolderBytes` | Size of `/tmp` in a test run | `268435456` |
-| `MaxConcurrentTestRuns` | Test runs on the node at once, apart from program runs | `2` |
-| `DefaultTestTimeoutSeconds` | Seconds a test run gets when the call names none, restore and build included | `600` |
-| `MaxTestTimeoutSeconds` | Most seconds a call may ask for a test run | `1800` |
-| `MaxProjectBytes` | Most bytes a project may unpack to | `268435456` |
-| `MaxProjectFiles` | Most files a project may hold | `20000` |
-| `WorkRoot` | Folder on the server's own disk where inputs wait for the copy into the container | the temp folder |
+| `SNAIL_MCP_SANDBOX_RUNTIME` | Container runtime the code runs under; the daemon must know it | `runsc` |
+| `SNAIL_MCP_SANDBOX_IMAGE` | Image the code runs in | `snail/sandbox-python:latest` |
+| `SNAIL_MCP_SANDBOX_DOCKER_ENDPOINT` | Docker Engine API of the node | `unix:///var/run/docker.sock` |
+| `SNAIL_MCP_SANDBOX_USER` | Numeric `uid:gid` the code runs as; never root | `65534:65534` |
+| `SNAIL_MCP_SANDBOX_MEMORY_BYTES` | Memory of one run, with no swap on top | `536870912` |
+| `SNAIL_MCP_SANDBOX_CPUS` | CPUs of one run | `1.0` |
+| `SNAIL_MCP_SANDBOX_PIDS` | Processes and threads of one run at once | `128` |
+| `SNAIL_MCP_SANDBOX_MAX_CONCURRENT_RUNS` | Runs on the node at once | `4` |
+| `SNAIL_MCP_SANDBOX_DEFAULT_TIMEOUT_SECONDS` | Seconds a run gets when the call names none | `60` |
+| `SNAIL_MCP_SANDBOX_MAX_TIMEOUT_SECONDS` | Most seconds a call may ask for | `300` |
+| `SNAIL_MCP_SANDBOX_OUTPUT_LIMIT_BYTES` | Bytes kept of stdout and of stderr each: half from the start, half from the end | `65536` |
+| `SNAIL_MCP_SANDBOX_OUT_FOLDER_BYTES` | Size of `/out` | `33554432` |
+| `SNAIL_MCP_SANDBOX_TMP_FOLDER_BYTES` | Size of `/tmp` | `67108864` |
+| `SNAIL_MCP_SANDBOX_MAX_OUTPUT_FILES` | Files returned from `/out` | `10` |
+| `SNAIL_MCP_SANDBOX_MAX_INPUT_FILES` | Files one call may pass | `20` |
+| `SNAIL_MCP_SANDBOX_MAX_INPUT_BYTES` | Largest input file | `67108864` |
+| `SNAIL_MCP_SANDBOX_MAX_INPUT_TOTAL_BYTES` | All input files of one call | `268435456` |
+| `SNAIL_MCP_SANDBOX_ALLOWED_HOSTS__0` | Hosts input links may point at, as `host` or `host:port`; `__0`, `__1`… | none — every link refused |
+| `SNAIL_MCP_SANDBOX_DOTNET_IMAGE` | Image a .NET project is built and tested in | `mcr.microsoft.com/dotnet/sdk:10.0` |
+| `SNAIL_MCP_SANDBOX_NODE_IMAGE` | Image a Node project is built and tested in | `node:22-bookworm-slim` |
+| `SNAIL_MCP_SANDBOX_RESTORE_NETWORK` | Docker network the restore stage fetches packages over; never `host` or `container:` | `none` — restore from the package volume only |
+| `SNAIL_MCP_SANDBOX_RESTORE_PROXY` | The restore proxy's address as a restore container reaches it, such as `http://mcp-sandbox:3128`; every host a restore asks for is answered as `network` | none — the proxy is off, `network` is `null` |
+| `SNAIL_MCP_SANDBOX_RESTORE_PROXY_PORT` | Port the restore proxy listens on inside the server, set together with `SNAIL_MCP_SANDBOX_RESTORE_PROXY` | `0` |
+| `SNAIL_MCP_SANDBOX_CACHE_VOLUME_PREFIX` | Prefix of the package volumes, one per toolchain | `snail-sandbox-cache` |
+| `SNAIL_MCP_SANDBOX_TEST_MEMORY_BYTES` | Memory of one test run, with no swap on top | `2147483648` |
+| `SNAIL_MCP_SANDBOX_TEST_CPUS` | CPUs of one test run | `2.0` |
+| `SNAIL_MCP_SANDBOX_TEST_PIDS` | Processes and threads of one test run at once | `1024` |
+| `SNAIL_MCP_SANDBOX_TEST_TMP_FOLDER_BYTES` | Size of `/tmp` in a test run | `268435456` |
+| `SNAIL_MCP_SANDBOX_MAX_CONCURRENT_TEST_RUNS` | Test runs on the node at once, apart from program runs | `2` |
+| `SNAIL_MCP_SANDBOX_DEFAULT_TEST_TIMEOUT_SECONDS` | Seconds a test run gets when the call names none, restore and build included | `600` |
+| `SNAIL_MCP_SANDBOX_MAX_TEST_TIMEOUT_SECONDS` | Most seconds a call may ask for a test run | `1800` |
+| `SNAIL_MCP_SANDBOX_MAX_PROJECT_BYTES` | Most bytes a project may unpack to | `268435456` |
+| `SNAIL_MCP_SANDBOX_MAX_PROJECT_FILES` | Most files a project may hold | `20000` |
+| `SNAIL_MCP_SANDBOX_WORK_ROOT` | Folder on the server's own disk where inputs wait for the copy into the container | the temp folder |
 
 ## How a run works
 

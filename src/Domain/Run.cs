@@ -25,7 +25,7 @@ public sealed record OutputFile(string Name, string MediaType, byte[] Bytes);
 /// </remarks>
 public sealed record RunOutcome(int? ExitCode, string Stdout, string Stderr, TimeSpan Duration)
 {
-    public bool TimedOut { get; init; }
+    public bool HasTimedOut { get; init; }
 
     public bool IsStdoutCut { get; init; }
 

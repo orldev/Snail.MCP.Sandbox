@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Options;
-using ModelContextProtocol.Protocol;
 using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Configuration;
 using Snail.MCP.Sandbox.Tools;
@@ -11,11 +10,13 @@ public static class SandboxServerExtensions
 {
     extension(WebApplicationBuilder builder)
     {
+        /// <summary>The tools, the run and test services, and the settings, read from the settings file and the <c>SNAIL_MCP_SANDBOX_</c> variables only.</summary>
+        /// <remarks>Logging stays the web host's own, on standard output, where the container's log driver collects it.</remarks>
         public WebApplicationBuilder ConfigureSandboxServer()
         {
             builder.Services
                 .AddOptions<SandboxOptions>()
-                .Bind(builder.Configuration.GetSection(SandboxOptions.SectionName))
+                .Bind(SandboxSettings.Read())
                 .ValidateOnStart();
             builder.Services.AddSingleton<IValidateOptions<SandboxOptions>, SandboxOptionsValidation>();
 
@@ -27,7 +28,7 @@ public static class SandboxServerExtensions
             builder.Services
                 .AddMcpServer(options =>
                 {
-                    options.ServerInfo = new Implementation { Name = "snail-sandbox", Version = "0.1.0" };
+                    options.ServerInfo = Snail.Sdk.Mcp.Hosting.ServerIdentity.Of(typeof(SandboxServerExtensions).Assembly);
                     options.ServerInstructions = ServerGuidance.Instructions;
                 })
                 .RefuseWhatWasNotGranted()

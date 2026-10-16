@@ -1,0 +1,129 @@
+[
+  {
+    "name": "sandbox_diagnose",
+    "description": "Whether this sandbox can run code at all: the node\u0027s Docker daemon answers, it has the isolating runtime,\nand the executor image is there. Nothing is run. Call it when sandbox_run_python fails before the program\nstarts; a program that ran and exited with an error is a fault in the program, not in the sandbox.\nuntestable lists the toolchains whose image the node lacks: sandbox_run_tests cannot test those projects\nuntil the image is pulled onto the node, and calling again will not change that.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {}
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "skill": null
+  },
+  {
+    "name": "sandbox_run_python",
+    "description": "Run a Python 3.12 program in a fresh container and get back what it printed and the files it wrote.\nThe container has no network, keeps nothing between calls and sees only the files you pass: they are in\nthe working directory under their own names, read-only, so open(\u0022sales.csv\u0022) reads one of them.\nWrite charts, tables and reports to /out: up to 10 files, 32 MB in all, come back with the answer.\npandas, numpy, matplotlib, duckdb, openpyxl and pytest are installed; nothing can be installed during a run.\nA run gets 512 MB of memory and 1 CPU. Standard output and standard error past 64 KB each keep their\nbeginning and their end with the middle cut, so print summaries rather than whole tables.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "code": {
+          "description": "The whole program. Nothing from an earlier call exists: import, load and compute again every time.",
+          "type": "string"
+        },
+        "files": {
+          "description": "Files the program reads: the keys of this task\u0027s files exactly as list_objects shows them, at most 20,\neach up to 64 MB and 256 MB in all. Each one appears in the working directory under its file name.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "default": null
+        },
+        "timeoutSeconds": {
+          "description": "Seconds the run may take, from 1 to 300; 60 when omitted. Past it the run is killed and nothing from /out comes back.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "code"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "skill": null
+  },
+  {
+    "name": "sandbox_run_tests",
+    "description": "Build a project and run its tests in a fresh container, and get back how many passed and which failed.\nThe toolchain is found from the files: a .slnx, .sln, .csproj or .fsproj is built with .NET 10, a package.json\nat the root with Node 22, Python files with Python 3.12 and pytest. Packages are restored first; the build and\nthe tests run with no network. A run gets 2048 MB of memory and 2 CPU.\nA project may unpack to 256 MB and 20000 files. The outcome is one of passed, failed, noTests, buildFailed, restoreFailed, timedOut or nothingToBuild.\nThe answer counts the tests, names the first 20 failures with their messages, and carries the end of the\noutput of the stage that decided the outcome.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "project": {
+          "description": "The project as a tar or tar.gz of its working folder, without build outputs and dependencies: the key of that\narchive exactly as list_objects shows it. Nothing else of the task is visible to the run.",
+          "type": "string"
+        },
+        "toolchain": {
+          "description": "dotnet, node or python; omitted, it is found from the project\u0027s files. Name it when a project mixes them.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "timeoutSeconds": {
+          "description": "Seconds the whole run may take, restore and build included, from 1 to 1800; 600 when omitted. Past it the run is killed.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "project"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": false,
+      "openWorldHint": true,
+      "readOnlyHint": true
+    },
+    "skill": null
+  },
+  {
+    "name": "find_tool",
+    "description": "Which tool does a thing, said in your own words \u2014 \u0022draw a chart from this table\u0022, \u0022check the node\nbefore I try again\u0022. Answers with the tools that match: the name to call and every argument each of\nthem takes, with what it means. When nothing matches it answers with all of them, because this\nserver has few enough tools that the whole list is a better answer than a wrong one.",
+    "inputSchema": {
+      "type": "object",
+      "properties": {
+        "task": {
+          "description": "What you are trying to do, in the words you would use to describe it.",
+          "type": "string"
+        },
+        "limit": {
+          "description": "How many tools to return at most; 5 by default, and never more than this server has.",
+          "type": "integer",
+          "default": 5
+        }
+      },
+      "required": [
+        "task"
+      ]
+    },
+    "annotations": {
+      "destructiveHint": false,
+      "idempotentHint": true,
+      "openWorldHint": false,
+      "readOnlyHint": true
+    },
+    "skill": null
+  }
+]

@@ -27,15 +27,15 @@ services:
       # unless told otherwise, and never the public address.
       - "${PUBLISH_ADDRESS:-127.0.0.1}:${PUBLISH_PORT:-8826}:8826"
     environment:
-      Snail__Runtime: ${RUNTIME:-runsc}
-      Snail__Image: ${REGISTRY:-ghcr.io/orldev}/sandbox-python:${SANDBOX_TAG:-latest}
+      SNAIL_MCP_SANDBOX_RUNTIME: ${RUNTIME:-runsc}
+      SNAIL_MCP_SANDBOX_IMAGE: ${REGISTRY:-ghcr.io/orldev}/sandbox-python:${SANDBOX_TAG:-latest}
       # Empty admits no link at all, which leaves programs that read no files and refuses every test run.
-      Snail__AllowedHosts__0: ${OBJECT_STORE:-}
-      Snail__RestoreNetwork: ${RESTORE_NETWORK:-s3l-sandbox-restore}
+      SNAIL_MCP_SANDBOX_ALLOWED_HOSTS__0: ${OBJECT_STORE:-}
+      SNAIL_MCP_SANDBOX_RESTORE_NETWORK: ${RESTORE_NETWORK:-s3l-sandbox-restore}
       # By address, not by name: under gVisor a container does not reach Docker's name server, measured on runsc
       # release-20260921.0 — the name resolved under runc and failed under runsc, on the same network.
-      Snail__RestoreProxy: http://${RESTORE_SUBNET:-10.213.26}.2:3128
-      Snail__RestoreProxyPort: "3128"
+      SNAIL_MCP_SANDBOX_RESTORE_PROXY: http://${RESTORE_SUBNET:-10.213.26}.2:3128
+      SNAIL_MCP_SANDBOX_RESTORE_PROXY_PORT: "3128"
     # The image runs as its non-root user; the socket's group is what lets it in.
     group_add:
       - "${DOCKER_GID:?set DOCKER_GID in .env to the group that owns the socket: stat -c %g /var/run/docker.sock}"

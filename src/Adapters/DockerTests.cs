@@ -43,7 +43,7 @@ public sealed class DockerTests(IDockerClient docker, IOptions<SandboxOptions> o
         }
         catch (Exception exception) when (exception is not OperationCanceledException)
         {
-            logger.LogWarning(exception, "A test run did not complete through the Docker daemon at {Endpoint}", limits.DockerEndpoint);
+            Log.TestRunNotCompleted(logger, exception, limits.DockerEndpoint);
 
             return Answer.Failed<TestExecution>(
                 $"The sandbox could not run the tests: {exception.Message}",

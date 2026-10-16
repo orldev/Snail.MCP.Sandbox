@@ -1,0 +1,44 @@
+name: release to NuGet
+
+# The shared server release of Snail.Sdk (its docs/workflows.md): one framework-dependent tool package, asked over HTTP
+# before it is pushed. The images a node runs are images.yml. A version tag (v1.2.0, v1.2.0-preview.1) releases; run by
+# hand, it builds and checks the package and pushes only when asked to. The push is a job of this file because nuget.org
+# gives a trusted publishing key only to a job of the workflow file its policy names in this repository
+# (job_workflow_ref): this publish.yml, with the secret NUGET_USER.
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: The version to pack, such as 0.2.0 or 0.2.0-preview.1
+        required: true
+      push:
+        description: Push the packages to NuGet
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    uses: orldev/Snail.Sdk/.github/workflows/mcp-publish.yml@v1
+    with:
+      contract-variable: SNAIL_SANDBOX_SERVER
+      contract-filter: FullyQualifiedName~ProcessContract
+      version: ${{ inputs.version }}
+      push: ${{ github.event_name == 'push' || inputs.push }}
+
+  push:
+    needs: release
+    if: needs.release.outputs.push == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: orldev/Snail.Sdk/.github/actions/nuget-push@v1
+        with:
+          user: ${{ secrets.NUGET_USER }}

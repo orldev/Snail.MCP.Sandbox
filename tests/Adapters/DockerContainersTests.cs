@@ -232,7 +232,7 @@ public sealed class DockerContainersTests : IDisposable
 
         var answer = await Containers(daemon).RunAsync("while True: pass", [], TimeSpan.FromMilliseconds(200), CancellationToken.None);
 
-        Assert.True(answer.Value!.TimedOut);
+        Assert.True(answer.Value!.HasTimedOut);
         Assert.Null(answer.Value.ExitCode);
         Assert.Equal("RemoveContainerAsync", daemon.Calls[^1]);
     }
@@ -247,7 +247,7 @@ public sealed class DockerContainersTests : IDisposable
 
         var answer = await Containers(daemon).RunAsync("import os; os.close(1)", [], TimeSpan.FromMilliseconds(300), CancellationToken.None);
 
-        Assert.True(answer.Value!.TimedOut);
+        Assert.True(answer.Value!.HasTimedOut);
         Assert.DoesNotContain(Collecting.Collect, daemon.Calls);
     }
 

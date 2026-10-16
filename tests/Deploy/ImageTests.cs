@@ -61,7 +61,7 @@ public sealed partial class ImageTests
         var workflow = File.ReadAllText(Path.Combine(Repository.Root, ".github", "workflows", "images.yml"));
         var name = new SandboxOptions().Image.Split(':')[0].Split('/')[^1];
 
-        Assert.Contains($"image: {name}\n            dockerfile: deploy/executor/Dockerfile", workflow, StringComparison.Ordinal);
+        Assert.Contains($"dockerfile: deploy/executor/Dockerfile\n      image: {name}\n", workflow, StringComparison.Ordinal);
     }
 
     [GeneratedRegex(@"^FROM python:(?<version>\d+\.\d+)", RegexOptions.Multiline)]

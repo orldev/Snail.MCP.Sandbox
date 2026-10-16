@@ -108,7 +108,7 @@ public sealed class IsolationTests : IDisposable
     {
         var outcome = await RunAsync("import time\nprint('started', flush=True)\ntime.sleep(120)", timeout: TimeSpan.FromSeconds(3));
 
-        Assert.True(outcome.TimedOut);
+        Assert.True(outcome.HasTimedOut);
         Assert.Contains("started", outcome.Stdout, StringComparison.Ordinal);
         Assert.InRange(outcome.Duration, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(5));
     }
