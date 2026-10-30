@@ -18,6 +18,9 @@ public static class SandboxSettings
     /// <summary>What every variable this server reads begins with.</summary>
     public static string Prefix { get; } = ServerSettings.PrefixOf(Name);
 
+    /// <summary>Where the server listens, <c>SNAIL_MCP_SANDBOX_URL</c>: only its port is read, on every interface of the container.</summary>
+    public static Uri Url => new(Read()["Url"] ?? "http://0.0.0.0:8826/");
+
     /// <summary>The settings as they stand: the settings file found, then the process's variables.</summary>
     public static IConfiguration Read() => Read(ServerSettings.FileOf(Name), Environment.GetEnvironmentVariables());
 

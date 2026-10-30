@@ -146,6 +146,16 @@ public sealed class ToolCatalogTests
         Assert.Contains($"{Defaults.MaxInputTotalBytes / Megabyte} MB in all", ToolDescriptions.RunPythonFiles, StringComparison.Ordinal);
     }
 
+    /// <summary>The wait a job tool takes is read by the SDK's client under one name, and its default is a promise the description makes.</summary>
+    [Fact]
+    public void Parameters_Wait_IsTheJobClientsAndDefaultsAsDescribed()
+    {
+        var waits = Tools.SelectMany(tool => tool.GetParameters()).Where(parameter => parameter.Name == Snail.Sdk.Mcp.JobClient.JobClient.WaitParameter).ToList();
+
+        Assert.Equal(2, waits.Count);
+        Assert.All(waits, wait => Assert.Contains($"{wait.DefaultValue} when", ToolDescriptions.Wait, StringComparison.Ordinal));
+    }
+
     /// <summary>The server's instructions name the tool; renaming it without them leaves the model looking for a tool that is gone.</summary>
     [Fact]
     public void Guidance_NamesEveryTool() =>

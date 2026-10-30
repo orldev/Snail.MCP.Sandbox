@@ -3,11 +3,10 @@
     <Sdk Name="Snail.Sdk.Mcp" />
 
     <!--
-        Framework-dependent and HTTP only (Snail.Sdk.Mcp): the server runs in its own container on a sandbox node, beside
+        Native, HTTP only and an image (Snail.Sdk.Mcp): the server runs in its own container on a sandbox node, beside
         the Docker daemon it starts runs through, and answers the workers of the platform at its port.
     -->
     <PropertyGroup>
-        <SnailMcpNative>false</SnailMcpNative>
         <SnailMcpTransport>Http</SnailMcpTransport>
         <SnailMcpContainer>true</SnailMcpContainer>
     </PropertyGroup>

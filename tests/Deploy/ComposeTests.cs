@@ -90,7 +90,7 @@ public sealed partial class ComposeTests
     [GeneratedRegex(@"SNAIL_MCP_SANDBOX_(?<name>[A-Z_]+?)(?:__\d+)?:", RegexOptions.CultureInvariant)]
     private static partial Regex Setting();
 
-    [GeneratedRegex(@"ASPNETCORE_HTTP_PORTS=(?<port>\d+)", RegexOptions.CultureInvariant)]
+    [GeneratedRegex(@"SNAIL_MCP_SANDBOX_URL=http://[^:/]+:(?<port>\d+)", RegexOptions.CultureInvariant)]
     private static partial Regex ListeningPort();
 
     [GeneratedRegex(@"\$\{REGISTRY[^}]*\}/(?<name>[a-z0-9-]+):", RegexOptions.CultureInvariant)]

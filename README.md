@@ -8,7 +8,9 @@ Four tools. `sandbox_run_python` takes the whole program, the task's files it re
 the answer is what it printed, its exit code, and every file it left in `/out`. `sandbox_run_tests` takes a project
 as a tar or tar.gz of its working folder, restores, builds and tests it with the toolchain its files call for —
 .NET 10, Node 22 or Python 3.12 with pytest — and answers with an outcome, the counts, the failures by name and
-the end of the output of the stage that decided it. `sandbox_diagnose` runs nothing
+the end of the output of the stage that decided it. Both are jobs: a call answers within its `wait` with the
+result, or with the job's resource when the run is still going (see [The contract](#contract-with-the-platform)).
+`sandbox_diagnose` runs nothing
 and says whether the node could: the Docker daemon answers, it has the runtime, the executor image is there. The
 platform's probe calls it, so a server that starts on a node without gVisor shows as unhealthy instead of green.
 `find_tool` says which of them does a thing, asked in a model's own words.
@@ -175,7 +177,16 @@ through the proxy. .NET and Node test runs were not.
   installed, with its `test` and `dev` extras.
 - **Errors.** `isError` means the run did not happen: no runtime, no image, a refused file. A program that ran
   and failed is `ok: true` with a non-zero `exitCode`; exit code 137 is almost always the memory limit.
-- **The job.** Port 8826. The socket mounted at `/var/run/docker.sock`, and the socket's group — the node's
+- **Jobs.** A run and a test run are jobs of `Snail.Sdk.Mcp.Hosting`: the tool starts the work and answers within
+  `wait` seconds (60 when omitted, 0 at once). Ended in time, the answer is the one above. Still going, the answer is
+  `{"ok": true, "job": "job://sandbox/python/<id>", "state": "running", "progress": …, "note": …}` and the structured
+  content is the job's report. The job is a resource at that URI whose text is its report; the report ends with
+  `result`, the same answer as above with every file of `/out` in it whole as `content`, base64 — a late reader has
+  nothing but the report. A client that can wait — the platform's worker, through `Snail.Sdk.Mcp.JobClient` — awaits
+  the resource rather than asking again; the run goes on when the client that started it is gone, and ends with the
+  server. The last twenty ended jobs stay readable. A job's URI is random and belongs to whoever holds it.
+- **The job.** Port 8826 — the port of `SNAIL_MCP_SANDBOX_URL`, on every interface of the container, behind the
+  refusal of a browser's request that Snail.Sdk.Mcp.Http's host brings. The socket mounted at `/var/run/docker.sock`, and the socket's group — the node's
   `meta.docker_gid` — added to the container, since the image runs as its non-root `app` user. Settings as
   environment variables below, or in the settings file; `SNAIL_MCP_SANDBOX_ALLOWED_HOSTS__*` must name the object store exactly as the workers reach it, because
   a link is signed for that host.

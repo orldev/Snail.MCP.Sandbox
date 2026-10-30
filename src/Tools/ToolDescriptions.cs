@@ -20,6 +20,7 @@ public static class ToolDescriptions
         {Libraries} are installed; nothing can be installed during a run.
         A run gets 512 MB of memory and 1 CPU. Standard output and standard error past 64 KB each keep their
         beginning and their end with the middle cut, so print summaries rather than whole tables.
+        The run is a job: it answers within wait with the result, or with the job to read as a resource.
         """;
 
     /// <summary>The outcomes a test run answers with, as the answer spells them; a guard test compares them with <c>TestOutcome</c>.</summary>
@@ -34,6 +35,7 @@ public static class ToolDescriptions
         A project may unpack to 256 MB and 20000 files. The outcome is one of {Outcomes}.
         The answer counts the tests, names the first 20 failures with their messages, and carries the end of the
         output of the stage that decided the outcome.
+        The run is a job: it answers within wait with the result, or with the job to read as a resource.
         """;
 
     public const string RunTestsProject =
@@ -64,6 +66,14 @@ public static class ToolDescriptions
         """
         Files the program reads: the keys of this task's files exactly as list_objects shows them, at most 20,
         each up to 64 MB and 256 MB in all. Each one appears in the working directory under its file name.
+        """;
+
+    public const string Wait =
+        """
+        Seconds to wait for the run before answering with the job in flight, from 0 to the run's own timeout; 60 when
+        omitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with
+        ok true and job, the URI of a resource whose text is the job's report; the report ends with the same answer
+        as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.
         """;
 
     public const string RunPythonTimeout =

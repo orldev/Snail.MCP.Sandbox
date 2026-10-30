@@ -16,7 +16,7 @@
   },
   {
     "name": "sandbox_run_python",
-    "description": "Run a Python 3.12 program in a fresh container and get back what it printed and the files it wrote.\nThe container has no network, keeps nothing between calls and sees only the files you pass: they are in\nthe working directory under their own names, read-only, so open(\u0022sales.csv\u0022) reads one of them.\nWrite charts, tables and reports to /out: up to 10 files, 32 MB in all, come back with the answer.\npandas, numpy, matplotlib, duckdb, openpyxl and pytest are installed; nothing can be installed during a run.\nA run gets 512 MB of memory and 1 CPU. Standard output and standard error past 64 KB each keep their\nbeginning and their end with the middle cut, so print summaries rather than whole tables.",
+    "description": "Run a Python 3.12 program in a fresh container and get back what it printed and the files it wrote.\nThe container has no network, keeps nothing between calls and sees only the files you pass: they are in\nthe working directory under their own names, read-only, so open(\u0022sales.csv\u0022) reads one of them.\nWrite charts, tables and reports to /out: up to 10 files, 32 MB in all, come back with the answer.\npandas, numpy, matplotlib, duckdb, openpyxl and pytest are installed; nothing can be installed during a run.\nA run gets 512 MB of memory and 1 CPU. Standard output and standard error past 64 KB each keep their\nbeginning and their end with the middle cut, so print summaries rather than whole tables.\nThe run is a job: it answers within wait with the result, or with the job to read as a resource.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -45,6 +45,11 @@
             "null"
           ],
           "default": null
+        },
+        "wait": {
+          "description": "Seconds to wait for the run before answering with the job in flight, from 0 to the run\u0027s own timeout; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and job, the URI of a resource whose text is the job\u0027s report; the report ends with the same answer\nas its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
+          "type": "integer",
+          "default": 60
         }
       },
       "required": [
@@ -61,7 +66,7 @@
   },
   {
     "name": "sandbox_run_tests",
-    "description": "Build a project and run its tests in a fresh container, and get back how many passed and which failed.\nThe toolchain is found from the files: a .slnx, .sln, .csproj or .fsproj is built with .NET 10, a package.json\nat the root with Node 22, Python files with Python 3.12 and pytest. Packages are restored first; the build and\nthe tests run with no network. A run gets 2048 MB of memory and 2 CPU.\nA project may unpack to 256 MB and 20000 files. The outcome is one of passed, failed, noTests, buildFailed, restoreFailed, timedOut or nothingToBuild.\nThe answer counts the tests, names the first 20 failures with their messages, and carries the end of the\noutput of the stage that decided the outcome.",
+    "description": "Build a project and run its tests in a fresh container, and get back how many passed and which failed.\nThe toolchain is found from the files: a .slnx, .sln, .csproj or .fsproj is built with .NET 10, a package.json\nat the root with Node 22, Python files with Python 3.12 and pytest. Packages are restored first; the build and\nthe tests run with no network. A run gets 2048 MB of memory and 2 CPU.\nA project may unpack to 256 MB and 20000 files. The outcome is one of passed, failed, noTests, buildFailed, restoreFailed, timedOut or nothingToBuild.\nThe answer counts the tests, names the first 20 failures with their messages, and carries the end of the\noutput of the stage that decided the outcome.\nThe run is a job: it answers within wait with the result, or with the job to read as a resource.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -84,6 +89,11 @@
             "null"
           ],
           "default": null
+        },
+        "wait": {
+          "description": "Seconds to wait for the run before answering with the job in flight, from 0 to the run\u0027s own timeout; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and job, the URI of a resource whose text is the job\u0027s report; the report ends with the same answer\nas its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
+          "type": "integer",
+          "default": 60
         }
       },
       "required": [

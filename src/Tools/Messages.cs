@@ -35,4 +35,10 @@ public static class Messages
 
     public const string ProjectOmitted =
         "Some files of the project were not copied in; omitted says which and why.";
+
+    public const string Running =
+        "The run is still going. Read the job resource when you want its state; it ends with the same answer as its result, the files in it base64. A client that can wait awaits the resource instead of asking again.";
+
+    public const string NotFinished =
+        "The sandbox stopped before the run ended — it was shutting down, or the run was cancelled. Start the run again.";
 }

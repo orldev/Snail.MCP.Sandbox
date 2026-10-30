@@ -15,6 +15,12 @@
       "packageArguments": [],
       "environmentVariables": [
         {
+          "name": "SNAIL_MCP_SANDBOX_URL",
+          "description": "Where the server listens; only the port is read, on every interface of the container.",
+          "isRequired": false,
+          "default": "http://0.0.0.0:8826/"
+        },
+        {
           "name": "SNAIL_MCP_SANDBOX_RUNTIME",
           "description": "Container runtime the code runs under; the daemon must know it.",
           "isRequired": false,

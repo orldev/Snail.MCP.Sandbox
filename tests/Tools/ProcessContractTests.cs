@@ -35,7 +35,7 @@ public sealed class ProcessContractTests : IAsyncLifetime
             RedirectStandardError = true
         };
 
-        start.Environment["ASPNETCORE_URLS"] = _address.ToString();
+        start.Environment["SNAIL_MCP_SANDBOX_URL"] = _address.ToString();
         start.Environment["SNAIL_MCP_SANDBOX_DOCKER_ENDPOINT"] = $"unix://{Path.Combine(_workRoot, "docker.sock")}";
         start.Environment["SNAIL_MCP_SANDBOX_WORK_ROOT"] = _workRoot;
         start.Environment[ServerSettings.FileVariableOf("sandbox")] = ServerProgram.NoSettingsFile;

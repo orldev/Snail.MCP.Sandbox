@@ -2,6 +2,9 @@ using Microsoft.Extensions.Options;
 using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Configuration;
 using Snail.MCP.Sandbox.Tools;
+using Snail.Sdk.Mcp.Hosting;
+using Snail.Sdk.Mcp.Hosting.Jobs;
+using Snail.Sdk.Mcp.Http;
 
 namespace Snail.MCP.Sandbox.Extensions;
 
@@ -11,7 +14,10 @@ public static class SandboxServerExtensions
     extension(WebApplicationBuilder builder)
     {
         /// <summary>The tools, the run and test services, and the settings, read from the settings file and the <c>SNAIL_MCP_SANDBOX_</c> variables only.</summary>
-        /// <remarks>Logging stays the web host's own, on standard output, where the container's log driver collects it.</remarks>
+        /// <remarks>
+        /// The host is Snail.Sdk.Mcp.Http's for a container — every interface on the port of <see cref="SandboxSettings.Url"/>,
+        /// log lines on stderr, where the container's log driver collects them, the heap trimmed when idle.
+        /// </remarks>
         public WebApplicationBuilder ConfigureSandboxServer()
         {
             builder.Services
@@ -32,9 +38,10 @@ public static class SandboxServerExtensions
                     options.ServerInstructions = ServerGuidance.Instructions;
                 })
                 .RefuseWhatWasNotGranted()
-                .WithHttpTransport()
-                .WithTools<RunTools>()
-                .WithTools<DiscoveryTools>();
+                .WithLocalHttpTransport()
+                .WithTools<RunTools>(ToolJson.Options(SandboxJson.Default))
+                .WithTools<DiscoveryTools>()
+                .WithJobs(SandboxSettings.Name);
 
             return builder;
         }
@@ -42,10 +49,10 @@ public static class SandboxServerExtensions
 
     extension(WebApplication app)
     {
-        /// <summary>The MCP endpoint and the health check Nomad polls.</summary>
+        /// <summary>The MCP endpoint, behind the refusal of a browser's request, and the health check Nomad polls.</summary>
         public WebApplication UseSandboxEndpoints()
         {
-            app.MapMcp("/mcp");
+            app.MapLocalMcp();
             app.MapGet("/healthz", () => Results.Ok());
 
             return app;

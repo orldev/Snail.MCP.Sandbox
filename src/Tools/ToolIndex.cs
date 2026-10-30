@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics.CodeAnalysis;
 using System.Reflection;
 using System.Text.Json.Nodes;
 using ModelContextProtocol.Server;
@@ -19,8 +20,12 @@ namespace Snail.MCP.Sandbox.Tools;
 /// </remarks>
 public sealed class ToolIndex(SessionGrant grant)
 {
-    /// <summary>Every tool of this assembly: this server's own first, then the ones the whole fleet shares.</summary>
+    /// <summary>Every tool of this server: its own first, then the ones the whole fleet shares.</summary>
     public static readonly IReadOnlyList<ToolEntry> All = Read();
+
+    /// <summary>The classes that declare the tools, named here: a native build keeps the methods of a class it is told of, and reads no assembly for them.</summary>
+    /// <remarks>A guard test holds this list to every class carrying <see cref="McpServerToolTypeAttribute"/>, so a class added beside them cannot be left out.</remarks>
+    internal static readonly IReadOnlyList<Type> Declaring = [typeof(RunTools), typeof(DiscoveryTools)];
 
     /// <summary>The prefix this server's own tools carry; the fleet's shared tools carry the same name everywhere.</summary>
     private const string Prefix = "sandbox_";
@@ -92,17 +97,19 @@ public sealed class ToolIndex(SessionGrant grant)
         })])
     };
 
-    /// <summary>The tools of this assembly, this server's own first and each group by name.</summary>
+    /// <summary>The tools of the declaring classes, this server's own first and each group by name.</summary>
     private static IReadOnlyList<ToolEntry> Read()
     {
-        var entries = typeof(ToolIndex).Assembly.GetTypes()
-            .Where(type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null)
-            .SelectMany(type => type.GetMethods(BindingFlags.Public | BindingFlags.Instance))
-            .Where(method => method.GetCustomAttribute<McpServerToolAttribute>() is not null)
-            .Select(Entry);
+        IEnumerable<MethodInfo> methods = [.. Methods<RunTools>(), .. Methods<DiscoveryTools>()];
+        var tools = methods.Where(method => method.GetCustomAttribute<McpServerToolAttribute>() is not null);
+        var entries = tools.Select(Entry);
 
         return [.. entries.OrderBy(Position).ThenBy(entry => entry.Name, StringComparer.Ordinal)];
     }
+
+    /// <summary>The public methods of a class named by type, which is what keeps them in a native build.</summary>
+    private static MethodInfo[] Methods<[DynamicallyAccessedMembers(DynamicallyAccessedMemberTypes.PublicMethods)] T>() =>
+        typeof(T).GetMethods(BindingFlags.Public | BindingFlags.Instance);
 
     /// <summary>What this server does comes before how to ask it what it does.</summary>
     private static int Position(ToolEntry entry) => entry.Name.StartsWith(Prefix, StringComparison.Ordinal) ? 0 : 1;

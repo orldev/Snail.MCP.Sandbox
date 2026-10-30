@@ -1,4 +1,6 @@
+using System.Reflection;
 using System.Text.Json.Nodes;
+using ModelContextProtocol.Server;
 using Microsoft.AspNetCore.Http;
 using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Tools;
@@ -114,4 +116,20 @@ public sealed class ToolIndexTests
         Assert.True(
             Vocabulary.Score("broken", "sandbox_diagnose", ToolIndex.Meant("sandbox_diagnose"), "")
             > Vocabulary.Score("broken", "sandbox_run_python", ToolIndex.Meant("sandbox_run_python"), "a program of your own that is broken fails here too"));
+
+    /// <summary>The index reads the classes it is told of, not the assembly, so a native build keeps their methods; a class added beside them has to be named too.</summary>
+    [Fact]
+    public void Declaring_EveryClassCarryingTheToolTypeAttribute_IsNamed()
+    {
+        var declaring = typeof(ToolIndex).Assembly.GetTypes().Where(type => type.GetCustomAttribute<McpServerToolTypeAttribute>() is not null);
+
+        Assert.Equal(declaring.Order(TypeOrder.Instance), ToolIndex.Declaring.Order(TypeOrder.Instance));
+    }
+
+    private sealed class TypeOrder : IComparer<Type>
+    {
+        public static readonly TypeOrder Instance = new();
+
+        public int Compare(Type? first, Type? second) => string.CompareOrdinal(first?.FullName, second?.FullName);
+    }
 }
