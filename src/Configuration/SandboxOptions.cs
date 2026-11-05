@@ -38,6 +38,14 @@ public sealed class SandboxOptions
     /// <remarks>Every other limit is per run, so without this one twenty calls at once still take the whole node.</remarks>
     public int MaxConcurrentRuns { get; set; } = 4;
 
+    /// <summary>Runs that may wait for a place at once; a call past them is refused at once, as the node being full.</summary>
+    /// <remarks>
+    /// A call that waits not at all returns in milliseconds, so one client can start a hundred runs in a second: four would
+    /// run, ninety-six would hold their code and wait, and the last would execute hours later whether anyone still wanted
+    /// it. The queue is bounded so the node's work stays within sight of the calls that asked for it.
+    /// </remarks>
+    public int MaxQueuedRuns { get; set; } = 8;
+
     /// <summary>Seconds a run gets when the caller names none.</summary>
     public int DefaultTimeoutSeconds { get; set; } = 60;
 
@@ -123,6 +131,9 @@ public sealed class SandboxOptions
 
     /// <summary>Test runs the node executes at once, apart from program runs.</summary>
     public int MaxConcurrentTestRuns { get; set; } = 2;
+
+    /// <summary>Test runs that may wait for a place at once; a call past them is refused at once.</summary>
+    public int MaxQueuedTestRuns { get; set; } = 4;
 
     /// <summary>Seconds a test run gets when the caller names none, restore and build included.</summary>
     public int DefaultTestTimeoutSeconds { get; set; } = 600;

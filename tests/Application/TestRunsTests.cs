@@ -148,8 +148,8 @@ public sealed class TestRunsTests
         Assert.Equal("The sandbox node has no runsc runtime.", answer.Error);
     }
 
-    internal static TestRuns Runs(Inputs inputs, Archives archives, Containers containers, int places = 2) =>
-        new(inputs, archives, containers, Options.Create(new SandboxOptions { MaxConcurrentTestRuns = places }));
+    internal static TestRuns Runs(Inputs inputs, Archives archives, Containers containers, int places = 2, int queued = 4) =>
+        new(inputs, archives, containers, Options.Create(new SandboxOptions { MaxConcurrentTestRuns = places, MaxQueuedTestRuns = queued }));
 
     internal static StageRun Ran(Stage stage, int? exitCode, string output) => new(stage, exitCode, output, false, TimeSpan.FromSeconds(1));
 

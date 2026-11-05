@@ -17,11 +17,12 @@ namespace Snail.MCP.Sandbox.Tools;
 /// <para>
 /// A run and a test run are jobs: the work outlasts a call — a build and its tests take minutes — so the tool starts
 /// it and answers within the wait the client allows, with the answer when the work ended in time and with the job's
-/// resource when it did not. The run goes on when the client that started it is gone, and ends with the server.
+/// resource when it did not. The run goes on when the client that started it is gone, and ends with the server. The
+/// job belongs to the session that started it: that is who awaits it, and who the kept results are counted for.
 /// </para>
 /// </remarks>
 [McpServerToolType]
-public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, Jobs jobs)
+public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, Jobs jobs, SessionOwner owner)
 {
     [McpServerTool(Name = "sandbox_diagnose", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(ToolDescriptions.Diagnose)]
@@ -37,9 +38,15 @@ public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, 
         [Description(ToolDescriptions.Wait)] int wait = 60,
         CancellationToken cancellationToken = default)
     {
-        var job = jobs.Start("python", async (_, token) => ToolResponse.Answered(await runs.RunAsync(code, files, timeoutSeconds, token)), ToolResponse.RunResult);
+        if (Waiting(wait) is { } refused)
+            return refused;
 
-        return ToolResponse.Run(await job.ForAsync(TimeSpan.FromSeconds(wait), cancellationToken));
+        var answered = new TaskCompletionSource<Answer<RunOutcome>>();
+        var job = jobs.Start("python", owner.Current, async (_, token) => ToolResponse.Answered(Handed(answered, await runs.RunAsync(code, files, timeoutSeconds, token))), ToolResponse.RunResult);
+
+        var report = await job.ForAsync(TimeSpan.FromSeconds(wait), cancellationToken);
+
+        return ToolResponse.Run(report, await HandedAsync(answered));
     }
 
     [McpServerTool(Name = "sandbox_run_tests", ReadOnly = true, Destructive = false, Idempotent = false, OpenWorld = true)]
@@ -51,8 +58,33 @@ public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, 
         [Description(ToolDescriptions.Wait)] int wait = 60,
         CancellationToken cancellationToken = default)
     {
-        var job = jobs.Start("tests", async (_, token) => ToolResponse.Answered(await tests.RunAsync(project, toolchain, timeoutSeconds, token)), ToolResponse.TestResult);
+        if (Waiting(wait) is { } refused)
+            return refused;
 
-        return ToolResponse.Tests(await job.ForAsync(TimeSpan.FromSeconds(wait), cancellationToken));
+        var answered = new TaskCompletionSource<Answer<TestReport>>();
+        var job = jobs.Start("tests", owner.Current, async (_, token) => ToolResponse.Answered(Handed(answered, await tests.RunAsync(project, toolchain, timeoutSeconds, token))), ToolResponse.TestResult);
+
+        var report = await job.ForAsync(TimeSpan.FromSeconds(wait), cancellationToken);
+
+        return ToolResponse.Tests(report, await HandedAsync(answered));
     }
+
+    /// <summary>The refusal of a wait outside what a call may ask for, or null when the wait is one.</summary>
+    /// <remarks>A delay past some forty-nine days throws in the runtime, and the description promises a range; the range is held here, as timeoutSeconds is.</remarks>
+    private static CallToolResult? Waiting(int wait) =>
+        wait is >= 0 and <= ToolDescriptions.LongestWait
+            ? null
+            : ToolResponse.Failure($"wait was {wait}; a call may wait from 0 to {ToolDescriptions.LongestWait} seconds.", Messages.WaitOutsideTheLimit);
+
+    /// <summary>The answer handed to the call that is waiting on it, before it becomes the job's result.</summary>
+    private static T Handed<T>(TaskCompletionSource<T> answered, T answer)
+    {
+        answered.TrySetResult(answer);
+
+        return answer;
+    }
+
+    /// <summary>The answer the work handed over, or null when it has not ended yet; never a wait.</summary>
+    private static async Task<T?> HandedAsync<T>(TaskCompletionSource<T> answered) where T : class =>
+        answered.Task.IsCompletedSuccessfully ? await answered.Task : null;
 }

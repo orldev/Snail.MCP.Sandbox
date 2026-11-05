@@ -17,6 +17,8 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
     /// <summary>The most bytes a file name may take on the node's disk: ext4's and tmpfs's limit, in bytes of UTF-8, not characters.</summary>
     private const int LongestName = 255;
 
+    private const string StoreUnreachable = "The object store did not answer the sandbox; this is the platform, not the code. Say so in the answer rather than calling again.";
+
     public async Task<Answer<IReadOnlyList<InputFile>>> FetchAsync(IReadOnlyList<Uri> links, string folder, CancellationToken cancellationToken)
     {
         var limits = options.Value;
@@ -116,7 +118,33 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
         return kept.ToString();
     }
 
+    /// <summary>The bytes written, or why the link could not be read: a refusal, an unreachable store, a download that broke off or outlasted the client's own patience.</summary>
+    /// <remarks>
+    /// A store that refuses the connection, a transfer reset halfway and a download past the client's two minutes all
+    /// throw out of the client; thrown out of a job, they would end it failed with no answer, and the model would be told
+    /// to start the run again against the same dead store.
+    /// </remarks>
     private async Task<Answer<long>> DownloadAsync(Uri link, string path, long fileLimit, long totalLeft, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await ReadAsync(link, path, fileLimit, totalLeft, cancellationToken);
+        }
+        catch (HttpRequestException exception)
+        {
+            return Answer.Failed<long>($"the link could not be read: {exception.Message}", StoreUnreachable);
+        }
+        catch (IOException exception)
+        {
+            return Answer.Failed<long>($"the download broke off: {exception.Message}", StoreUnreachable);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            return Answer.Failed<long>("the download did not finish within the two minutes the sandbox gives a link.", StoreUnreachable);
+        }
+    }
+
+    private async Task<Answer<long>> ReadAsync(Uri link, string path, long fileLimit, long totalLeft, CancellationToken cancellationToken)
     {
         using var http = clients.CreateClient(nameof(LinkInputs));
         using var response = await http.GetAsync(link, HttpCompletionOption.ResponseHeadersRead, cancellationToken);

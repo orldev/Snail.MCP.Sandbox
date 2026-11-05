@@ -8,13 +8,13 @@ public sealed class TestRunsCrashTests
 {
     private const string Link = "http://minio:9000/b/project.tar.gz";
 
-    /// <summary>Breaks the share: eight builds asked at once never take more places than the node gives test runs.</summary>
+    /// <summary>Breaks the share: eight builds asked at once never take more places than the node gives test runs, and all of them run when the queue has room.</summary>
     [Fact]
     public async Task RunAsync_EightAtOnce_NeverMoreThanThePlacesRunTogether()
     {
         var gate = new TaskCompletionSource();
         var containers = new TestRunsTests.Containers { Gate = gate.Task };
-        var runs = TestRunsTests.Runs(new TestRunsTests.Inputs(), new TestRunsTests.Archives(), containers, places: 2);
+        var runs = TestRunsTests.Runs(new TestRunsTests.Inputs(), new TestRunsTests.Archives(), containers, places: 2, queued: 6);
 
         var running = Enumerable.Range(0, 8).Select(_ => Task.Run(() => runs.RunAsync(Link, null, null, CancellationToken.None))).ToList();
         await Task.Delay(200);
@@ -23,6 +23,24 @@ public sealed class TestRunsCrashTests
 
         Assert.Equal(2, containers.MostAtOnce);
         Assert.All(running, run => Assert.Equal(TestOutcome.Passed, run.Result.Value!.Outcome));
+    }
+
+    /// <summary>Breaks the queue: with two places and four allowed to wait, the seventh build asked at once is refused now, not run hours later.</summary>
+    [Fact]
+    public async Task RunAsync_PastThePlacesAndTheQueue_IsRefusedAtOnce()
+    {
+        var gate = new TaskCompletionSource();
+        var containers = new TestRunsTests.Containers { Gate = gate.Task };
+        var runs = TestRunsTests.Runs(new TestRunsTests.Inputs(), new TestRunsTests.Archives(), containers, places: 2, queued: 4);
+
+        var asked = Enumerable.Range(0, 6).Select(_ => runs.RunAsync(Link, null, null, CancellationToken.None)).ToList();
+        var seventh = await runs.RunAsync(Link, null, null, CancellationToken.None);
+        gate.SetResult();
+        await Task.WhenAll(asked);
+
+        Assert.False(seventh.IsSuccess);
+        Assert.Contains("full", seventh.Error, StringComparison.Ordinal);
+        Assert.All(asked, run => Assert.True(run.Result.IsSuccess));
     }
 
     /// <summary>Breaks the dependency: a daemon that throws mid-run still leaves no copy of the project on the node's disk.</summary>

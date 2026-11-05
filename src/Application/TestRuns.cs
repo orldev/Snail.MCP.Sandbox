@@ -17,6 +17,8 @@ public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestCon
 {
     private readonly SemaphoreSlim _places = new(options.Value.MaxConcurrentTestRuns);
 
+    private int _asked;
+
     public async Task<Answer<TestReport>> RunAsync(string project, string? toolchain, int? timeoutSeconds, CancellationToken cancellationToken)
     {
         var limits = options.Value;
@@ -41,12 +43,34 @@ public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestCon
                 $"timeoutSeconds was {seconds}; a test run may take from 1 to {limits.MaxTestTimeoutSeconds} seconds.",
                 "Run fewer tests in one call when the project needs more than that.");
 
+        if (Interlocked.Increment(ref _asked) > limits.MaxConcurrentTestRuns + limits.MaxQueuedTestRuns)
+        {
+            Interlocked.Decrement(ref _asked);
+
+            return Answer.Failed<TestReport>(
+                $"The sandbox node is full: {limits.MaxConcurrentTestRuns} test runs are going and {limits.MaxQueuedTestRuns} are waiting for a place.",
+                "Say so in the answer rather than calling again at once; a place frees when a test run ends.");
+        }
+
+        try
+        {
+            return await PlacedAsync(link, named, TimeSpan.FromSeconds(seconds), limits, cancellationToken);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _asked);
+        }
+    }
+
+    /// <summary>The test run once it has a place: in a folder of its own, forgotten when it ends.</summary>
+    private async Task<Answer<TestReport>> PlacedAsync(Uri link, Toolchain? named, TimeSpan timeout, SandboxOptions limits, CancellationToken cancellationToken)
+    {
         await _places.WaitAsync(cancellationToken);
         var folder = Path.Combine(limits.WorkRoot, Guid.NewGuid().ToString("N"));
 
         try
         {
-            return await TestedAsync(link, named, TimeSpan.FromSeconds(seconds), folder, cancellationToken);
+            return await TestedAsync(link, named, timeout, folder, cancellationToken);
         }
         finally
         {

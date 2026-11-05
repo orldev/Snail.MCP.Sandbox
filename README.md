@@ -40,7 +40,7 @@ nothing, and a sequence of runs shares nothing between its steps — every run g
 | The container | Network `none`; read-only root; every capability dropped, bounding set included; `no-new-privileges`; user `65534:65534`; memory with no swap on top; CPU; processes; `/tmp` 64 MB, `noexec`. Created for one run, used for one exec, removed in a `finally`. |
 | Files in | Signed links only, only from hosts in `SNAIL_MCP_SANDBOX_ALLOWED_HOSTS__*`, no redirects followed, size counted while reading rather than trusted from the header. Copied into the container owned by root and read-only; the downloads are deleted when the call ends, whatever happened. |
 | Files out | `/out` is a tmpfs of the container itself, 32 MB, owned by the run user alone, `noexec`. It is read back by `tar` run in the container as that user, the archive held to twice the tmpfs size; up to 10 files come back, links and special files are named, never followed. |
-| The node's share | At most 4 runs at once; a call past that waits for a place. Every other limit is per run. |
+| The node's share | At most 4 runs at once; a call past that waits for a place, and past 8 waiting it is refused at once as the node being full. Every other limit is per run. |
 
 A container whose server dies mid-run still ends: its own process sleeps for the run's timeout plus 60 seconds
 and the container removes itself with its volumes. One the server created but never started is swept at the
@@ -178,13 +178,16 @@ through the proxy. .NET and Node test runs were not.
 - **Errors.** `isError` means the run did not happen: no runtime, no image, a refused file. A program that ran
   and failed is `ok: true` with a non-zero `exitCode`; exit code 137 is almost always the memory limit.
 - **Jobs.** A run and a test run are jobs of `Snail.Sdk.Mcp.Hosting`: the tool starts the work and answers within
-  `wait` seconds (60 when omitted, 0 at once). Ended in time, the answer is the one above. Still going, the answer is
+  `wait` seconds (60 when omitted, 0 at once, at most 1860: the longest test run and its grace). Ended in time, the
+  answer is the one above, and the structured content is the job's report without its `result`, which the answer
+  already is. Still going, the answer is
   `{"ok": true, "job": "job://sandbox/python/<id>", "state": "running", "progress": …, "note": …}` and the structured
   content is the job's report. The job is a resource at that URI whose text is its report; the report ends with
   `result`, the same answer as above with every file of `/out` in it whole as `content`, base64 — a late reader has
   nothing but the report. A client that can wait — the platform's worker, through `Snail.Sdk.Mcp.JobClient` — awaits
   the resource rather than asking again; the run goes on when the client that started it is gone, and ends with the
-  server. The last twenty ended jobs stay readable. A job's URI is random and belongs to whoever holds it.
+  server. A job belongs to the session that started it: that session reads and watches it, another session asking
+  for its URI is told there is none, and the last twenty ended jobs of each session stay readable, five hundred in all.
 - **The job.** Port 8826 — the port of `SNAIL_MCP_SANDBOX_URL`, on every interface of the container, behind the
   refusal of a browser's request that Snail.Sdk.Mcp.Http's host brings. The socket mounted at `/var/run/docker.sock`, and the socket's group — the node's
   `meta.docker_gid` — added to the container, since the image runs as its non-root `app` user. Settings as
@@ -214,6 +217,7 @@ start on settings that confine less than they claim: an empty runtime, a root or
 | `SNAIL_MCP_SANDBOX_CPUS` | CPUs of one run | `1.0` |
 | `SNAIL_MCP_SANDBOX_PIDS` | Processes and threads of one run at once | `128` |
 | `SNAIL_MCP_SANDBOX_MAX_CONCURRENT_RUNS` | Runs on the node at once | `4` |
+| `SNAIL_MCP_SANDBOX_MAX_QUEUED_RUNS` | Runs that may wait for a place at once; a call past them is refused as the node being full | `8` |
 | `SNAIL_MCP_SANDBOX_DEFAULT_TIMEOUT_SECONDS` | Seconds a run gets when the call names none | `60` |
 | `SNAIL_MCP_SANDBOX_MAX_TIMEOUT_SECONDS` | Most seconds a call may ask for | `300` |
 | `SNAIL_MCP_SANDBOX_OUTPUT_LIMIT_BYTES` | Bytes kept of stdout and of stderr each: half from the start, half from the end | `65536` |
@@ -236,6 +240,7 @@ start on settings that confine less than they claim: an empty runtime, a root or
 | `SNAIL_MCP_SANDBOX_TEST_PIDS` | Processes and threads of one test run at once | `1024` |
 | `SNAIL_MCP_SANDBOX_TEST_TMP_FOLDER_BYTES` | Size of `/tmp` in a test run | `268435456` |
 | `SNAIL_MCP_SANDBOX_MAX_CONCURRENT_TEST_RUNS` | Test runs on the node at once, apart from program runs | `2` |
+| `SNAIL_MCP_SANDBOX_MAX_QUEUED_TEST_RUNS` | Test runs that may wait for a place at once; a call past them is refused | `4` |
 | `SNAIL_MCP_SANDBOX_DEFAULT_TEST_TIMEOUT_SECONDS` | Seconds a test run gets when the call names none, restore and build included | `600` |
 | `SNAIL_MCP_SANDBOX_MAX_TEST_TIMEOUT_SECONDS` | Most seconds a call may ask for a test run | `1800` |
 | `SNAIL_MCP_SANDBOX_MAX_PROJECT_BYTES` | Most bytes a project may unpack to | `268435456` |

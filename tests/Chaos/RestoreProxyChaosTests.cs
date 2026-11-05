@@ -89,6 +89,21 @@ public sealed class RestoreProxyChaosTests : IAsyncLifetime
         Assert.Equal([address.Trim('[', ']')], watch.Hosts);
     }
 
+    /// <summary>
+    /// Breaks the port: a CONNECT to a port past 65535 parses, and connecting to it throws an argument exception that the
+    /// serving task does not catch — the client is closed without a status, and the exception goes unobserved.
+    /// </summary>
+    [Fact]
+    public async Task Connect_PortPastTheRange_IsRefusedWithAStatus()
+    {
+        using RestoreWatch watch = _proxy.Watch()!;
+
+        using var client = await ConnectedAsync();
+        string answer = await AskAsync(client, $"CONNECT 93.184.216.34:99999 HTTP/1.1\r\nProxy-Authorization: Basic {Credentials(watch)}\r\n\r\n");
+
+        Assert.StartsWith("HTTP/1.1 4", answer, StringComparison.Ordinal);
+    }
+
     /// <summary>Breaks the accept loop: sixty-four tunnels opened at once all answer, and the host is still named once.</summary>
     [Fact]
     public async Task Connect_SixtyFourTunnelsAtOnce_AllAnswerAndTheHostIsNamedOnce()

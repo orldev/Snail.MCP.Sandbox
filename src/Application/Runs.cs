@@ -8,11 +8,14 @@ namespace Snail.MCP.Sandbox.Application;
 /// <remarks>
 /// Everything a model can get wrong is answered before a byte is downloaded or a container exists: no code, a
 /// timeout outside the limit, a file given as something other than a link. A key passed straight through, which
-/// happens when the platform did not sign it, is the common case of the last one, and the hint says so.
+/// happens when the platform did not sign it, is the common case of the last one, and the hint says so. A call past
+/// the node's places and the runs allowed to wait for one is refused at once rather than queued for hours.
 /// </remarks>
 public sealed class Runs(IInputs inputs, IContainers containers, IOptions<SandboxOptions> options) : IDisposable
 {
     private readonly SemaphoreSlim _places = new(options.Value.MaxConcurrentRuns);
+
+    private int _asked;
 
     public async Task<Answer<RunOutcome>> RunAsync(string code, IReadOnlyList<string>? files, int? timeoutSeconds, CancellationToken cancellationToken)
     {
@@ -33,6 +36,30 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
                 $"The file {unsigned} reached the sandbox as a name, not as a link, so it cannot be read.",
                 "Pass the keys of this task's files exactly as list_objects shows them; the platform signs those. A path on your own disk does not exist here.");
 
+        if (Interlocked.Increment(ref _asked) > limits.MaxConcurrentRuns + limits.MaxQueuedRuns)
+        {
+            Interlocked.Decrement(ref _asked);
+
+            return Answer.Failed<RunOutcome>(
+                $"The sandbox node is full: {limits.MaxConcurrentRuns} runs are going and {limits.MaxQueuedRuns} are waiting for a place.",
+                "Say so in the answer rather than calling again at once; a place frees when a run ends.");
+        }
+
+        try
+        {
+            return await PlacedAsync(code, wanted, TimeSpan.FromSeconds(seconds), limits, cancellationToken);
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _asked);
+        }
+    }
+
+    public void Dispose() => _places.Dispose();
+
+    /// <summary>The run once it has a place: its files fetched into a folder of its own, the code run, the folder forgotten.</summary>
+    private async Task<Answer<RunOutcome>> PlacedAsync(string code, IReadOnlyList<string> wanted, TimeSpan timeout, SandboxOptions limits, CancellationToken cancellationToken)
+    {
         await _places.WaitAsync(cancellationToken);
         var folder = Path.Combine(limits.WorkRoot, Guid.NewGuid().ToString("N"));
 
@@ -42,7 +69,7 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
             if (fetched.Value is not { } placed)
                 return Answer.Failed<RunOutcome>(fetched.Error ?? "The files were not fetched.", fetched.Hint);
 
-            return await containers.RunAsync(code, placed, TimeSpan.FromSeconds(seconds), cancellationToken);
+            return await containers.RunAsync(code, placed, timeout, cancellationToken);
         }
         finally
         {
@@ -50,6 +77,4 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
             _places.Release();
         }
     }
-
-    public void Dispose() => _places.Dispose();
 }

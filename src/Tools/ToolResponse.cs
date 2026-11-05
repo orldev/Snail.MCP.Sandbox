@@ -1,3 +1,4 @@
+using System.Buffers.Text;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -68,11 +69,33 @@ public static class ToolResponse
             ? new TestAnswer(true, Data(report), null, null)
             : new TestAnswer(false, null, answer.Error ?? "The tests did not run.", answer.Hint);
 
-    /// <summary>The tool result of a run's job as it stands: the answer with its files as blocks once it ended, where to read it while it runs.</summary>
+    /// <summary>The tool result of a run's job as it stands, read from the report alone: the answer with its files as blocks once it ended, where to read it while it runs.</summary>
     public static CallToolResult Run(JobReport report) => JobAnswer.Of(report, ended => Said(ended, Json.RunAnswer, Told));
 
-    /// <summary>The tool result of a test run's job as it stands.</summary>
+    /// <summary>The tool result of a run's job as it stands, told from the run itself when the job ended in time.</summary>
+    /// <remarks>
+    /// The job's result is the answer written as JSON with every file base64 inside, and reading it back to answer the
+    /// call that started it — parsed, the record rewritten, the base64 decoded and encoded again — allocated 739 MB for a
+    /// file of 32 MB (measured 30.10.2026). The work hands its answer over as it ends, so a job that ended within the wait
+    /// is told from the files' own bytes, once; only a late reader has nothing but the report.
+    /// </remarks>
+    public static CallToolResult Run(JobReport report, Answer<RunOutcome>? answered) =>
+        report.State is JobState.Succeeded && answered is not null
+            ? JobAnswer.Of(Stripped(report), _ => Told(answered))
+            : JobAnswer.Of(report, ended => Said(ended, Json.RunAnswer, Told));
+
+    /// <summary>The tool result of a test run's job as it stands, read from the report alone.</summary>
     public static CallToolResult Tests(JobReport report) => JobAnswer.Of(report, ended => Said(ended, Json.TestAnswer, Told));
+
+    /// <summary>The tool result of a test run's job as it stands, told from the report itself when the job ended in time.</summary>
+    public static CallToolResult Tests(JobReport report, Answer<TestReport>? answered) =>
+        report.State is JobState.Succeeded && answered is not null
+            ? JobAnswer.Of(Stripped(report), _ => Told(Answered(answered)))
+            : JobAnswer.Of(report, ended => Said(ended, Json.TestAnswer, Told));
+
+    /// <summary>The report without its result, for the structured content of a call that carries the result as its answer.</summary>
+    /// <remarks>The report beside an answer told in time would carry every file a second time, base64 inside the result: a 32 MB file twice on the wire. The resource still ends with the result whole.</remarks>
+    private static JobReport Stripped(JobReport report) => report with { Result = null };
 
     public static CallToolResult Success(JsonObject data) => new()
     {
@@ -87,13 +110,18 @@ public static class ToolResponse
         StructuredContent = Element(new JsonObject { ["error"] = message, ["hint"] = hint })
     };
 
+    /// <summary>The answer a report stands for: pending, cancelled with the server, failed by the sandbox, or told from its result.</summary>
+    /// <remarks>A job ends failed on any exception of its work — a store that refused a download, a daemon gone — and that is the sandbox's own fault, worded as such; only a job the host stopped under is a cancellation.</remarks>
     private static CallToolResult Said<T>(JobReport report, JsonTypeInfo<T> type, Func<T, CallToolResult> told)
     {
         if (report.IsRunning)
             return Pending(report);
 
-        if (report.State is not JobState.Succeeded || report.Result is not { } result)
+        if (report.State is JobState.Cancelled)
             return Failure($"The sandbox did not finish the run: {report.Message ?? "it was stopped"}.", Messages.NotFinished);
+
+        if (report.State is not JobState.Succeeded || report.Result is not { } result)
+            return Failure($"The sandbox could not run the code: {report.Message ?? "no reason was given"}.", Messages.SandboxFailed);
 
         return told(JsonSerializer.Deserialize(result, type)!);
     }
@@ -102,6 +130,20 @@ public static class ToolResponse
     {
         Content = [new TextContentBlock { Text = JsonSerializer.Serialize(new PendingAnswer(true, report.Uri, "running", report.Progress, Messages.Running), Json.PendingAnswer) }]
     };
+
+    /// <summary>The run told from its own outcome: the files listed in the text and carried as blocks from their bytes.</summary>
+    private static CallToolResult Told(Answer<RunOutcome> answer)
+    {
+        if (answer.Value is not { } outcome)
+            return Failure(answer.Error ?? "The run did not happen.", answer.Hint);
+
+        var listed = new RunAnswer(true, Data(outcome, withContent: false), null, null);
+
+        return new CallToolResult
+        {
+            Content = [new TextContentBlock { Text = JsonSerializer.Serialize(listed, Json.RunAnswer) }, .. outcome.Outputs.Select(Block)]
+        };
+    }
 
     private static CallToolResult Told(RunAnswer answer)
     {
@@ -121,7 +163,7 @@ public static class ToolResponse
             ? Failure(answer.Error ?? "The tests did not run.", answer.Hint)
             : new CallToolResult { Content = [new TextContentBlock { Text = JsonSerializer.Serialize(answer, Json.TestAnswer) }] };
 
-    private static RunSummary Data(RunOutcome outcome) => new(
+    private static RunSummary Data(RunOutcome outcome, bool withContent = true) => new(
         outcome.ExitCode,
         outcome.HasTimedOut,
         Math.Round(outcome.Duration.TotalSeconds, 2),
@@ -129,7 +171,7 @@ public static class ToolResponse
         outcome.Stderr,
         outcome.IsStdoutCut,
         outcome.IsStderrCut,
-        [.. outcome.Outputs.Select(file => new OutFile(file.Name, file.MediaType, file.Bytes.Length, Convert.ToBase64String(file.Bytes)))],
+        [.. outcome.Outputs.Select(file => new OutFile(file.Name, file.MediaType, file.Bytes.Length, withContent ? Convert.ToBase64String(file.Bytes) : null))],
         outcome.Omitted,
         Note(outcome));
 
@@ -172,6 +214,15 @@ public static class ToolResponse
     /// <summary>The file as the platform takes it aside: its base64 body, its media type, and its place under /out as a URI with every segment escaped.</summary>
     private static EmbeddedResourceBlock Block(OutFile file) =>
         new() { Resource = BlobResourceContents.FromBytes(Convert.FromBase64String(file.Content ?? string.Empty), Address(file.Name), file.MediaType) };
+
+    /// <summary>The file's block from its bytes, encoded once into the base64 the block carries, with no string in between.</summary>
+    private static EmbeddedResourceBlock Block(OutputFile file)
+    {
+        var encoded = new byte[Base64.GetMaxEncodedToUtf8Length(file.Bytes.Length)];
+        Base64.EncodeToUtf8(file.Bytes, encoded, out _, out _);
+
+        return new EmbeddedResourceBlock { Resource = new BlobResourceContents { Uri = Address(file.Name), MimeType = file.MediaType, Blob = encoded } };
+    }
 
     private static string Address(string name) =>
         $"sandbox://out/{string.Join('/', name.Split('/').Select(Uri.EscapeDataString))}";

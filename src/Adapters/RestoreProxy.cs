@@ -87,7 +87,7 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
             try
             {
                 NetworkStream stream = client.GetStream();
-                if (await HeadAsync(stream, cancellationToken) is not { } head)
+                if (await HeadAsync(stream, cancellationToken) is not var (head, beyond))
                     return;
 
                 if (Request.Of(head) is not { } request)
@@ -109,7 +109,7 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
                     return;
                 }
 
-                await ForwardAsync(client, request, head, addresses, cancellationToken);
+                await ForwardAsync(client, request, head, beyond, addresses, cancellationToken);
             }
             catch (Exception exception) when (exception is IOException or SocketException or OperationCanceledException)
             {
@@ -160,7 +160,7 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
     /// comes back. Ending the tunnel at the first direction to finish cut off a reply a client had already asked for
     /// and said nothing more about, and left the other copy failing on a stream closed under it.
     /// </remarks>
-    private static async Task ForwardAsync(TcpClient client, Request request, byte[] head, IPAddress[] addresses, CancellationToken cancellationToken)
+    private static async Task ForwardAsync(TcpClient client, Request request, byte[] head, ReadOnlyMemory<byte> beyond, IPAddress[] addresses, CancellationToken cancellationToken)
     {
         using var upstream = new TcpClient();
         await upstream.ConnectAsync(addresses, request.Port, cancellationToken);
@@ -171,6 +171,9 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
             await near.WriteAsync("HTTP/1.1 200 Connection established\r\n\r\n"u8.ToArray(), cancellationToken);
         else
             await far.WriteAsync(request.Forwarded(head), cancellationToken);
+
+        if (beyond.Length > 0)
+            await far.WriteAsync(beyond, cancellationToken);
 
         using var ending = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         Task outbound = PassAsync(near, far, upstream.Client, ending);
@@ -192,24 +195,35 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
         }
     }
 
-    /// <summary>The request's head up to the blank line; null when the client said nothing or said too much.</summary>
-    private static async Task<byte[]?> HeadAsync(NetworkStream stream, CancellationToken cancellationToken)
+    /// <summary>The request's head up to the blank line, and whatever the client sent after it; null when the client said nothing or said too much.</summary>
+    /// <remarks>
+    /// Read a packet at a time rather than a byte: a byte per read cost a restore of hundreds of requests a system call
+    /// per byte of every head. What arrives past the blank line in the same packet — the start of a body, the first
+    /// bytes of a tunnel's handshake — belongs to the host and is handed on with the head.
+    /// </remarks>
+    private static async Task<(byte[] Head, ReadOnlyMemory<byte> Beyond)?> HeadAsync(NetworkStream stream, CancellationToken cancellationToken)
     {
-        List<byte> read = [];
-        var one = new byte[1];
+        var read = new byte[MaxHeadBytes];
+        var count = 0;
 
-        while (read.Count < MaxHeadBytes)
+        while (count < read.Length)
         {
-            if (await stream.ReadAsync(one, cancellationToken) == 0)
+            var got = await stream.ReadAsync(read.AsMemory(count), cancellationToken);
+            if (got == 0)
                 return null;
 
-            read.Add(one[0]);
-            if (read.Count >= 4 && read[^4] == '\r' && read[^3] == '\n' && read[^2] == '\r' && read[^1] == '\n')
-                return [.. read];
+            var searchFrom = Math.Max(0, count - 3);
+            count += got;
+
+            var blank = read.AsSpan(searchFrom, count - searchFrom).IndexOf(BlankLine);
+            if (blank >= 0)
+                return (read[..(searchFrom + blank + BlankLine.Length)], read.AsMemory(searchFrom + blank + BlankLine.Length, count - searchFrom - blank - BlankLine.Length));
         }
 
         return null;
     }
+
+    private static ReadOnlySpan<byte> BlankLine => "\r\n\r\n"u8;
 
     private static Task RefuseAsync(NetworkStream stream, string status, CancellationToken cancellationToken)
     {
@@ -259,15 +273,18 @@ public sealed class RestoreProxy(IOptions<SandboxOptions> options, ILogger<Resto
             if (string.Equals(first[0], "CONNECT", StringComparison.OrdinalIgnoreCase))
             {
                 int colon = first[1].LastIndexOf(':');
-                return colon > 0 && int.TryParse(first[1][(colon + 1)..], out var port)
+                return colon > 0 && int.TryParse(first[1][(colon + 1)..], out var port) && IsAPort(port)
                     ? new Request(first[1][..colon].Trim('[', ']'), port, true, run, first[1], lines[0])
                     : null;
             }
 
-            return Uri.TryCreate(first[1], UriKind.Absolute, out var target) && target.Scheme == Uri.UriSchemeHttp
+            return Uri.TryCreate(first[1], UriKind.Absolute, out var target) && target.Scheme == Uri.UriSchemeHttp && IsAPort(target.Port)
                 ? new Request(target.Host, target.Port, false, run, first[1], lines[0])
                 : null;
         }
+
+        /// <summary>Whether a number is a port a socket can be asked to connect to; past the range the connection throws instead of refusing.</summary>
+        private static bool IsAPort(int port) => port is >= 1 and <= 65535;
 
         /// <summary>The head as the host expects it: the path instead of the whole address, and nothing meant for the proxy.</summary>
         public byte[] Forwarded(byte[] head)

@@ -47,7 +47,7 @@
           "default": null
         },
         "wait": {
-          "description": "Seconds to wait for the run before answering with the job in flight, from 0 to the run\u0027s own timeout; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and job, the URI of a resource whose text is the job\u0027s report; the report ends with the same answer\nas its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
+          "description": "Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and job, the URI of a resource whose text is the job\u0027s report; the report ends with the same answer\nas its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
           "type": "integer",
           "default": 60
         }
@@ -91,7 +91,7 @@
           "default": null
         },
         "wait": {
-          "description": "Seconds to wait for the run before answering with the job in flight, from 0 to the run\u0027s own timeout; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and job, the URI of a resource whose text is the job\u0027s report; the report ends with the same answer\nas its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
+          "description": "Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and job, the URI of a resource whose text is the job\u0027s report; the report ends with the same answer\nas its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
           "type": "integer",
           "default": 60
         }

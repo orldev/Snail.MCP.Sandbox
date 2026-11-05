@@ -68,9 +68,12 @@ public static class ToolDescriptions
         each up to 64 MB and 256 MB in all. Each one appears in the working directory under its file name.
         """;
 
+    /// <summary>The longest wait a call may ask for: the longest test run and the grace its container outlives it by; a guard test holds it to the defaults.</summary>
+    public const int LongestWait = 1860;
+
     public const string Wait =
         """
-        Seconds to wait for the run before answering with the job in flight, from 0 to the run's own timeout; 60 when
+        Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when
         omitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with
         ok true and job, the URI of a resource whose text is the job's report; the report ends with the same answer
         as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.

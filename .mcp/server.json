@@ -69,6 +69,12 @@
           "default": "4"
         },
         {
+          "name": "SNAIL_MCP_SANDBOX_MAX_QUEUED_RUNS",
+          "description": "Runs that may wait for a place at once; a call past them is refused as the node being full.",
+          "isRequired": false,
+          "default": "8"
+        },
+        {
           "name": "SNAIL_MCP_SANDBOX_DEFAULT_TIMEOUT_SECONDS",
           "description": "Seconds a run gets when the call names none.",
           "isRequired": false,
@@ -196,6 +202,12 @@
           "description": "Test runs on the node at once, apart from program runs.",
           "isRequired": false,
           "default": "2"
+        },
+        {
+          "name": "SNAIL_MCP_SANDBOX_MAX_QUEUED_TEST_RUNS",
+          "description": "Test runs that may wait for a place at once; a call past them is refused.",
+          "isRequired": false,
+          "default": "4"
         },
         {
           "name": "SNAIL_MCP_SANDBOX_DEFAULT_TEST_TIMEOUT_SECONDS",

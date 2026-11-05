@@ -27,6 +27,9 @@ public sealed partial class SandboxOptionsValidation : IValidateOptions<SandboxO
         if (options.MemoryBytes <= 0 || !IsALimit(options.Cpus) || options.Pids <= 0 || options.MaxConcurrentRuns <= 0)
             failures.Add("SNAIL_MCP_SANDBOX_MEMORY_BYTES, SNAIL_MCP_SANDBOX_CPUS, SNAIL_MCP_SANDBOX_PIDS and SNAIL_MCP_SANDBOX_MAX_CONCURRENT_RUNS must all be positive numbers: an unset limit is no limit.");
 
+        if (options.MaxQueuedRuns < 0 || options.MaxQueuedTestRuns < 0)
+            failures.Add("SNAIL_MCP_SANDBOX_MAX_QUEUED_RUNS and SNAIL_MCP_SANDBOX_MAX_QUEUED_TEST_RUNS must not be negative; 0 refuses every call past the places.");
+
         if (options.OutputLimitBytes <= 0 || options.OutFolderBytes <= 0 || options.TmpFolderBytes <= 0 || options.MaxOutputFiles <= 0)
             failures.Add("SNAIL_MCP_SANDBOX_OUTPUT_LIMIT_BYTES, SNAIL_MCP_SANDBOX_OUT_FOLDER_BYTES, SNAIL_MCP_SANDBOX_TMP_FOLDER_BYTES and SNAIL_MCP_SANDBOX_MAX_OUTPUT_FILES must all be positive.");
 

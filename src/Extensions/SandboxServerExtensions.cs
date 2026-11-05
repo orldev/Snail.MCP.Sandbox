@@ -29,6 +29,7 @@ public static class SandboxServerExtensions
             builder.Services.AddRuns();
             builder.Services.AddHttpContextAccessor();
             builder.Services.AddSingleton<SessionGrant>();
+            builder.Services.AddSingleton<SessionOwner>();
             builder.Services.AddSingleton<ToolIndex>();
 
             builder.Services
@@ -41,11 +42,14 @@ public static class SandboxServerExtensions
                 .WithLocalHttpTransport()
                 .WithTools<RunTools>(ToolJson.Options(SandboxJson.Default))
                 .WithTools<DiscoveryTools>()
-                .WithJobs(SandboxSettings.Name);
+                .WithJobs(SandboxSettings.Name, OwnerOf);
 
             return builder;
         }
     }
+
+    /// <summary>The owner of a request's jobs: its session, so a session reads and watches only the runs it started.</summary>
+    private static string? OwnerOf(IServiceProvider services) => services.GetService<SessionOwner>()?.Current;
 
     extension(WebApplication app)
     {

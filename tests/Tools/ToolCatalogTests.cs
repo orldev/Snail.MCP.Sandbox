@@ -156,6 +156,14 @@ public sealed class ToolCatalogTests
         Assert.All(waits, wait => Assert.Contains($"{wait.DefaultValue} when", ToolDescriptions.Wait, StringComparison.Ordinal));
     }
 
+    /// <summary>The longest wait is the longest test run plus the grace its container outlives it by: a longer wait would outlive the work it waits for.</summary>
+    [Fact]
+    public void Parameters_LongestWait_IsTheLongestTestRunAndItsGrace()
+    {
+        Assert.Equal(ToolDescriptions.LongestWait, Defaults.MaxTestTimeoutSeconds + (int)Confinement.Grace.TotalSeconds);
+        Assert.Contains($"from 0 to {ToolDescriptions.LongestWait}", ToolDescriptions.Wait, StringComparison.Ordinal);
+    }
+
     /// <summary>The server's instructions name the tool; renaming it without them leaves the model looking for a tool that is gone.</summary>
     [Fact]
     public void Guidance_NamesEveryTool() =>

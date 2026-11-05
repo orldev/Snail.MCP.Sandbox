@@ -95,6 +95,33 @@ public sealed class RestoreProxyTests : IAsyncLifetime
         Assert.Equal(["localhost"], watch.Hosts);
     }
 
+    /// <summary>A body that arrives in the same packet as the head belongs to the host: a head read a packet at a time must hand it on, not swallow it.</summary>
+    [Fact]
+    public async Task Post_BodyInTheSamePacketAsTheHead_ReachesTheHostWhole()
+    {
+        using RestoreWatch watch = _proxy.Watch()!;
+
+        using var client = await ConnectedAsync();
+        await client.GetStream().WriteAsync(Encoding.ASCII.GetBytes($"POST http://localhost:{UpstreamPort}/upload HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\nProxy-Authorization: Basic {Credentials(watch)}\r\n\r\nhello"));
+        string echoed = await ReadAsync(client, "POST /upload HTTP/1.1\r\nHost: localhost\r\nContent-Length: 5\r\n\r\nhello".Length);
+
+        Assert.EndsWith("\r\n\r\nhello", echoed, StringComparison.Ordinal);
+    }
+
+    /// <summary>A client that sends the first bytes of its handshake right behind CONNECT, before the 200, still has them reach the host.</summary>
+    [Fact]
+    public async Task Connect_FirstTunnelBytesBehindTheHead_ReachTheHost()
+    {
+        using RestoreWatch watch = _proxy.Watch()!;
+
+        using var client = await ConnectedAsync();
+        string answer = await AskAsync(client, $"CONNECT 127.0.0.1:{UpstreamPort} HTTP/1.1\r\nHost: 127.0.0.1\r\nProxy-Authorization: Basic {Credentials(watch)}\r\n\r\nearly");
+        string echoed = await ReadAsync(client, 5);
+
+        Assert.StartsWith("HTTP/1.1 200", answer, StringComparison.Ordinal);
+        Assert.Equal("early", echoed);
+    }
+
     [Fact]
     public async Task Watch_SameHostTwice_NamesItOnce()
     {

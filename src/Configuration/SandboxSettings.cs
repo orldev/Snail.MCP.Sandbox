@@ -19,7 +19,19 @@ public static class SandboxSettings
     public static string Prefix { get; } = ServerSettings.PrefixOf(Name);
 
     /// <summary>Where the server listens, <c>SNAIL_MCP_SANDBOX_URL</c>: only its port is read, on every interface of the container.</summary>
-    public static Uri Url => new(Read()["Url"] ?? "http://0.0.0.0:8826/");
+    public static Uri Url => UrlOf(Read());
+
+    /// <summary>The address <paramref name="settings"/> name, or the default; a value that is not an http address is refused naming the variable.</summary>
+    /// <remarks>Read before a host exists, so it cannot fail through the options' validation like every other setting; the refusal is worded the same way instead of being a bare UriFormatException.</remarks>
+    public static Uri UrlOf(IConfiguration settings)
+    {
+        var named = settings["Url"] ?? "http://0.0.0.0:8826/";
+
+        if (Uri.TryCreate(named, UriKind.Absolute, out var address) && (address.Scheme == Uri.UriSchemeHttp || address.Scheme == Uri.UriSchemeHttps))
+            return address;
+
+        throw new InvalidOperationException($"{Prefix}URL must be an absolute http address, such as http://0.0.0.0:8826/; it was '{named}'.");
+    }
 
     /// <summary>The settings as they stand: the settings file found, then the process's variables.</summary>
     public static IConfiguration Read() => Read(ServerSettings.FileOf(Name), Environment.GetEnvironmentVariables());

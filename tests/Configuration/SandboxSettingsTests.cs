@@ -27,6 +27,21 @@ public sealed class SandboxSettingsTests
             setting => Assert.NotEqual(Shown(setting.GetValue(defaults)), Shown(setting.GetValue(bound))));
     }
 
+    /// <summary>The address is read before a host exists, so it cannot fail through the options' validation; the refusal still names the variable rather than throwing a bare format error.</summary>
+    [Fact]
+    public void UrlOf_NotAnAddress_IsRefusedNamingTheVariable()
+    {
+        var variables = new Hashtable { ["SNAIL_MCP_SANDBOX_URL"] = "eight thousand" };
+
+        var refusal = Assert.Throws<InvalidOperationException>(() => SandboxSettings.UrlOf(SandboxSettings.Read(variables)));
+
+        Assert.Contains("SNAIL_MCP_SANDBOX_URL", refusal.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void UrlOf_NothingNamed_IsTheDefaultPort() =>
+        Assert.Equal(8826, SandboxSettings.UrlOf(SandboxSettings.Read(new Hashtable())).Port);
+
     [Fact]
     public void Read_AnUnprefixedVariable_IsNotASetting()
     {

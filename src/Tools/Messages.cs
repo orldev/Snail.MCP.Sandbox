@@ -41,4 +41,10 @@ public static class Messages
 
     public const string NotFinished =
         "The sandbox stopped before the run ended — it was shutting down, or the run was cancelled. Start the run again.";
+
+    public const string WaitOutsideTheLimit =
+        "Ask with a wait within the range, or 0 to get the job at once and read its resource later.";
+
+    public const string SandboxFailed =
+        "This is the sandbox failing, not the code. Call once more; if it fails again, say so in the answer.";
 }
