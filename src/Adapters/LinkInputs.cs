@@ -19,6 +19,7 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
 
     private const string StoreUnreachable = "The object store did not answer the sandbox; this is the platform, not the code. Say so in the answer rather than calling again.";
 
+    /// <inheritdoc />
     public async Task<Answer<IReadOnlyList<InputFile>>> FetchAsync(IReadOnlyList<Uri> links, string folder, CancellationToken cancellationToken)
     {
         var limits = options.Value;
@@ -52,6 +53,7 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
         return Answer.Ok<IReadOnlyList<InputFile>>(fetched);
     }
 
+    /// <inheritdoc />
     public void Discard(string folder)
     {
         if (Directory.Exists(folder))

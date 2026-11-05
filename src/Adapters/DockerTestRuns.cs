@@ -24,6 +24,7 @@ public sealed class DockerTestRuns(IDockerClient docker, IOptions<SandboxOptions
 
     private readonly ConcurrentDictionary<Toolchain, bool> _handedOver = new();
 
+    /// <inheritdoc />
     public async Task<Answer<TestExecution>> TestAsync(PackedProject project, Toolchain toolchain, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var limits = options.Value;

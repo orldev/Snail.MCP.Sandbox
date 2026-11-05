@@ -19,6 +19,7 @@ public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestCon
 
     private int _asked;
 
+    /// <summary>What the test run found out, or why it could not run: a request refused before anything ran, the archive not fetched or not readable, the node full.</summary>
     public async Task<Answer<TestReport>> RunAsync(string project, string? toolchain, int? timeoutSeconds, CancellationToken cancellationToken)
     {
         var limits = options.Value;
@@ -79,6 +80,7 @@ public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestCon
         }
     }
 
+    /// <inheritdoc />
     public void Dispose() => _places.Dispose();
 
     private async Task<Answer<TestReport>> TestedAsync(Uri link, Toolchain? named, TimeSpan timeout, string folder, CancellationToken cancellationToken)

@@ -6,6 +6,7 @@ namespace Snail.MCP.Sandbox.Configuration;
 /// <summary>Refuses to start on settings that would run code less confined than they claim.</summary>
 public sealed partial class SandboxOptionsValidation : IValidateOptions<SandboxOptions>
 {
+    /// <inheritdoc />
     public ValidateOptionsResult Validate(string? name, SandboxOptions options)
     {
         List<string> failures = [];

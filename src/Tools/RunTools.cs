@@ -24,11 +24,13 @@ namespace Snail.MCP.Sandbox.Tools;
 [McpServerToolType]
 public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, Jobs jobs, SessionOwner owner)
 {
+    /// <summary>Whether the node can run code at all, without running any.</summary>
     [McpServerTool(Name = "sandbox_diagnose", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(ToolDescriptions.Diagnose)]
     public async Task<CallToolResult> DiagnoseAsync(CancellationToken cancellationToken = default) =>
         ToolResponse.From(await containers.DiagnoseAsync(cancellationToken));
 
+    /// <summary>One Python program run in a container of its own, answered within the wait or as the job to read.</summary>
     [McpServerTool(Name = "sandbox_run_python", ReadOnly = true, Destructive = false, Idempotent = false, OpenWorld = false)]
     [Description(ToolDescriptions.RunPython)]
     public async Task<CallToolResult> RunPythonAsync(
@@ -49,6 +51,7 @@ public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, 
         return ToolResponse.Run(report, await HandedAsync(answered));
     }
 
+    /// <summary>One project restored, built and tested in a container of its own, answered within the wait or as the job to read.</summary>
     [McpServerTool(Name = "sandbox_run_tests", ReadOnly = true, Destructive = false, Idempotent = false, OpenWorld = true)]
     [Description(ToolDescriptions.RunTests)]
     public async Task<CallToolResult> RunTestsAsync(

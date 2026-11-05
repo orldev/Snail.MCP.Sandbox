@@ -3,8 +3,13 @@ namespace Snail.MCP.Sandbox.Domain;
 /// <summary>The language a project is built and tested with, which decides the image and the commands.</summary>
 public enum Toolchain
 {
+    /// <summary>A solution or project built and tested with the .NET SDK image.</summary>
     Dotnet,
+
+    /// <summary>Python files tested with pytest in the executor image.</summary>
     Python,
+
+    /// <summary>A package.json at the root, built and tested with npm in the Node image.</summary>
     Node
 }
 
@@ -84,6 +89,7 @@ public sealed record TestReport(Toolchain? Toolchain, TestOutcome Outcome, TimeS
     /// <summary>What the deciding phase printed, standard error after standard output, cut in the middle past the limit.</summary>
     public string Output { get; init; } = string.Empty;
 
+    /// <summary>Whether the output was cut to the limit, its middle dropped.</summary>
     public bool IsOutputCut { get; init; }
 
     /// <summary>Files of the project that did not reach the container, and why.</summary>

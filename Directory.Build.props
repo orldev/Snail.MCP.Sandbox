@@ -5,12 +5,4 @@
         <TargetFramework>net10.0</TargetFramework>
     </PropertyGroup>
 
-    <!--
-        Migration debt (Toolkit/Snail.Sdk/docs/standard.md): CS1591, 58 public members of src without an XML summary.
-        Writing them is a change of its own, not part of moving onto the SDK; removed as they are written.
-    -->
-    <PropertyGroup>
-        <NoWarn>$(NoWarn);CS1591</NoWarn>
-    </PropertyGroup>
-
 </Project>

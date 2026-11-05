@@ -13,6 +13,7 @@ namespace Snail.MCP.Sandbox.Tools;
 [McpServerToolType]
 public sealed class DiscoveryTools(ToolIndex index)
 {
+    /// <summary>The tools that do what the task says, best first, or every tool when none matches.</summary>
     [McpServerTool(Name = "find_tool", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
     [Description(ToolDescriptions.FindTool)]
     public CallToolResult Find(

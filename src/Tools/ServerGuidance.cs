@@ -7,6 +7,7 @@ namespace Snail.MCP.Sandbox.Tools;
 /// </remarks>
 public static class ServerGuidance
 {
+    /// <summary>The instructions a client receives in initialize, before any call.</summary>
     public const string Instructions =
         """
         This server runs Python you write in a fresh, isolated container: no network, no state kept between

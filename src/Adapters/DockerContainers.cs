@@ -42,6 +42,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
     /// <summary>The highest exit code of tar whose archive is whole: GNU tar answers 1 when a file changed while it read it.</summary>
     private const int ChangedWhileRead = 1;
 
+    /// <inheritdoc />
     public async Task<Answer<RunOutcome>> RunAsync(string code, IReadOnlyList<InputFile> inputs, TimeSpan timeout, CancellationToken cancellationToken)
     {
         var limits = options.Value;
@@ -72,6 +73,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
         }
     }
 
+    /// <inheritdoc />
     public async Task<Answer<Readiness>> DiagnoseAsync(CancellationToken cancellationToken)
     {
         var limits = options.Value;

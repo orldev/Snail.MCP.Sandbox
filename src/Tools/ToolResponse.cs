@@ -46,6 +46,7 @@ public static class ToolResponse
     /// <summary>The type a test job's result is written as.</summary>
     public static JsonTypeInfo<TestAnswer> TestResult => Json.TestAnswer;
 
+    /// <summary>The tool result of a diagnosis: the node's readiness, or why it was not diagnosed.</summary>
     public static CallToolResult From(Answer<Readiness> answer) =>
         answer.Value is { } readiness
             ? Success(new JsonObject
@@ -97,12 +98,14 @@ public static class ToolResponse
     /// <remarks>The report beside an answer told in time would carry every file a second time, base64 inside the result: a 32 MB file twice on the wire. The resource still ends with the result whole.</remarks>
     private static JobReport Stripped(JobReport report) => report with { Result = null };
 
+    /// <summary>A tool result that carries data, as text and as structured content.</summary>
     public static CallToolResult Success(JsonObject data) => new()
     {
         Content = [new TextContentBlock { Text = new JsonObject { ["ok"] = true, ["data"] = data.DeepClone() }.ToJsonString(Options) }],
         StructuredContent = Element(data)
     };
 
+    /// <summary>A tool result flagged as an error, with the reason and what to do about it.</summary>
     public static CallToolResult Failure(string message, string? hint = null) => new()
     {
         IsError = true,

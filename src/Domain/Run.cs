@@ -25,12 +25,16 @@ public sealed record OutputFile(string Name, string MediaType, byte[] Bytes);
 /// </remarks>
 public sealed record RunOutcome(int? ExitCode, string Stdout, string Stderr, TimeSpan Duration)
 {
+    /// <summary>Whether the run was killed at its time limit, which leaves its exit code unknown.</summary>
     public bool HasTimedOut { get; init; }
 
+    /// <summary>Whether standard output was cut to the limit, its middle dropped.</summary>
     public bool IsStdoutCut { get; init; }
 
+    /// <summary>Whether standard error was cut to the limit, its middle dropped.</summary>
     public bool IsStderrCut { get; init; }
 
+    /// <summary>The files the code left in /out, up to the limit, in name order.</summary>
     public IReadOnlyList<OutputFile> Outputs { get; init; } = [];
 
     /// <summary>Files left in /out that were not returned, each with the reason.</summary>

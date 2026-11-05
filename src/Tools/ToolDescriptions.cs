@@ -11,6 +11,7 @@ public static class ToolDescriptions
     /// <summary>The libraries the executor image installs by name; a guard test compares them with its requirements.</summary>
     public const string Libraries = "pandas, numpy, matplotlib, duckdb, openpyxl and pytest";
 
+    /// <summary>What the model reads before running a program.</summary>
     public const string RunPython =
         $"""
         Run a Python 3.12 program in a fresh container and get back what it printed and the files it wrote.
@@ -26,6 +27,7 @@ public static class ToolDescriptions
     /// <summary>The outcomes a test run answers with, as the answer spells them; a guard test compares them with <c>TestOutcome</c>.</summary>
     public const string Outcomes = "passed, failed, noTests, buildFailed, restoreFailed, timedOut or nothingToBuild";
 
+    /// <summary>What the model reads before testing a project.</summary>
     public const string RunTests =
         $"""
         Build a project and run its tests in a fresh container, and get back how many passed and which failed.
@@ -38,18 +40,22 @@ public static class ToolDescriptions
         The run is a job: it answers within wait with the result, or with the job to read as a resource.
         """;
 
+    /// <summary>The project archive as sandbox_run_tests takes it.</summary>
     public const string RunTestsProject =
         """
         The project as a tar or tar.gz of its working folder, without build outputs and dependencies: the key of that
         archive exactly as list_objects shows it. Nothing else of the task is visible to the run.
         """;
 
+    /// <summary>The toolchain a caller may name for a test run.</summary>
     public const string RunTestsToolchain =
         "dotnet, node or python; omitted, it is found from the project's files. Name it when a project mixes them.";
 
+    /// <summary>The time a test run may take, as the caller asks for it.</summary>
     public const string RunTestsTimeout =
         "Seconds the whole run may take, restore and build included, from 1 to 1800; 600 when omitted. Past it the run is killed.";
 
+    /// <summary>What the model reads before asking whether the node can run code.</summary>
     public const string Diagnose =
         """
         Whether this sandbox can run code at all: the node's Docker daemon answers, it has the isolating runtime,
@@ -59,9 +65,11 @@ public static class ToolDescriptions
         until the image is pulled onto the node, and calling again will not change that.
         """;
 
+    /// <summary>The program as sandbox_run_python takes it.</summary>
     public const string RunPythonCode =
         "The whole program. Nothing from an earlier call exists: import, load and compute again every time.";
 
+    /// <summary>The files a program reads, as sandbox_run_python takes them.</summary>
     public const string RunPythonFiles =
         """
         Files the program reads: the keys of this task's files exactly as list_objects shows them, at most 20,
@@ -71,6 +79,7 @@ public static class ToolDescriptions
     /// <summary>The longest wait a call may ask for: the longest test run and the grace its container outlives it by; a guard test holds it to the defaults.</summary>
     public const int LongestWait = 1860;
 
+    /// <summary>The wait a call allows before answering with the job in flight.</summary>
     public const string Wait =
         """
         Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when
@@ -79,9 +88,11 @@ public static class ToolDescriptions
         as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.
         """;
 
+    /// <summary>The time a run may take, as the caller asks for it.</summary>
     public const string RunPythonTimeout =
         "Seconds the run may take, from 1 to 300; 60 when omitted. Past it the run is killed and nothing from /out comes back.";
 
+    /// <summary>What the model reads before asking which tool does a thing.</summary>
     public const string FindTool =
         """
         Which tool does a thing, said in your own words — "draw a chart from this table", "check the node
@@ -90,7 +101,9 @@ public static class ToolDescriptions
         server has few enough tools that the whole list is a better answer than a wrong one.
         """;
 
+    /// <summary>The task find_tool takes, in the model's own words.</summary>
     public const string FindToolTask = "What you are trying to do, in the words you would use to describe it.";
 
+    /// <summary>How many tools find_tool answers with at most.</summary>
     public const string FindToolLimit = "How many tools to return at most; 5 by default, and never more than this server has.";
 }

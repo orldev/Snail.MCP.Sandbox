@@ -8,6 +8,7 @@ namespace Snail.MCP.Sandbox.Adapters;
 /// <summary>Rewrites a project's tar or tar.gz under the server's limits, owned by the run user.</summary>
 public sealed class TarProjectArchives(IOptions<SandboxOptions> options) : IProjectArchives
 {
+    /// <inheritdoc />
     public Task<Answer<PackedProject>> RepackAsync(string archive, string folder, CancellationToken cancellationToken)
     {
         var limits = options.Value;

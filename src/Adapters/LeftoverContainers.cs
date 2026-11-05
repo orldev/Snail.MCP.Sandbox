@@ -13,6 +13,7 @@ namespace Snail.MCP.Sandbox.Adapters;
 /// </remarks>
 public sealed class LeftoverContainers(IDockerClient docker, ILogger<LeftoverContainers> logger) : IHostedService
 {
+    /// <inheritdoc />
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         using var waiting = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
@@ -38,5 +39,6 @@ public sealed class LeftoverContainers(IDockerClient docker, ILogger<LeftoverCon
         }
     }
 
+    /// <inheritdoc />
     public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

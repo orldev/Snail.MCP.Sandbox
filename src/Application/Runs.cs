@@ -17,6 +17,7 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
 
     private int _asked;
 
+    /// <summary>What the run did, or why it could not: a request refused before anything ran, a file not fetched, the node full.</summary>
     public async Task<Answer<RunOutcome>> RunAsync(string code, IReadOnlyList<string>? files, int? timeoutSeconds, CancellationToken cancellationToken)
     {
         var limits = options.Value;
@@ -55,6 +56,7 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
         }
     }
 
+    /// <inheritdoc />
     public void Dispose() => _places.Dispose();
 
     /// <summary>The run once it has a place: its files fetched into a folder of its own, the code run, the folder forgotten.</summary>
