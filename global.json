@@ -12,7 +12,7 @@
   },
 
   "msbuild-sdks": {
-    "Snail.Sdk": "0.4.2-local.4",
-    "Snail.Sdk.Mcp": "0.4.2-local.4"
+    "Snail.Sdk": "0.4.2-local.5",
+    "Snail.Sdk.Mcp": "0.4.2-local.5"
   }
 }
