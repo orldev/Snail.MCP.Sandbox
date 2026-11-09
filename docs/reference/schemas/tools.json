@@ -47,7 +47,7 @@
           "default": null
         },
         "wait": {
-          "description": "Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and job, the URI of a resource whose text is the job\u0027s report; the report ends with the same answer\nas its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
+          "description": "Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and the job\u0027s report as data, its uri a resource whose text is that report; the report ends with the\nrun as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
           "type": "integer",
           "default": 60
         }
@@ -91,7 +91,7 @@
           "default": null
         },
         "wait": {
-          "description": "Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and job, the URI of a resource whose text is the job\u0027s report; the report ends with the same answer\nas its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
+          "description": "Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and the job\u0027s report as data, its uri a resource whose text is that report; the report ends with the\nrun as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
           "type": "integer",
           "default": 60
         }
@@ -110,23 +110,32 @@
   },
   {
     "name": "find_tool",
-    "description": "Which tool does a thing, said in your own words \u2014 \u0022draw a chart from this table\u0022, \u0022check the node\nbefore I try again\u0022. Answers with the tools that match: the name to call and every argument each of\nthem takes, with what it means. When nothing matches it answers with all of them, because this\nserver has few enough tools that the whole list is a better answer than a wrong one.",
+    "description": "Finds tools of this server for a task in words, best first, with the parameters of each. Ask it before deciding that no tool exists.",
     "inputSchema": {
       "type": "object",
       "properties": {
         "task": {
-          "description": "What you are trying to do, in the words you would use to describe it.",
-          "type": "string"
+          "description": "What you are trying to do, in words.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
         },
         "limit": {
-          "description": "How many tools to return at most; 5 by default, and never more than this server has.",
+          "description": "How many tools to name, 1 to 20.",
           "type": "integer",
           "default": 5
+        },
+        "intent": {
+          "description": "Same as task.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
         }
-      },
-      "required": [
-        "task"
-      ]
+      }
     },
     "annotations": {
       "destructiveHint": false,

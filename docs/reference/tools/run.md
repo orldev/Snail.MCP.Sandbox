@@ -41,7 +41,7 @@ The run is a job: it answers within wait with the result, or with the job to rea
 | `code` | `string` | yes | — | The whole program. Nothing from an earlier call exists: import, load and compute again every time. |
 | `files` | `array?` | — | `null` | Files the program reads: the keys of this task's files exactly as list_objects shows them, at most 20, each up to 64 MB and 256 MB in all. Each one appears in the working directory under its file name. |
 | `timeoutSeconds` | `integer?` | — | `null` | Seconds the run may take, from 1 to 300; 60 when omitted. Past it the run is killed and nothing from /out comes back. |
-| `wait` | `integer` | — | `60` | Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when omitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with ok true and job, the URI of a resource whose text is the job's report; the report ends with the same answer as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again. |
+| `wait` | `integer` | — | `60` | Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when omitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with ok true and the job's report as data, its uri a resource whose text is that report; the report ends with the run as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again. |
 
 <details><summary>JSON Schema</summary>
 
@@ -76,7 +76,7 @@ The run is a job: it answers within wait with the result, or with the job to rea
       "default": null
     },
     "wait": {
-      "description": "Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and job, the URI of a resource whose text is the job\u0027s report; the report ends with the same answer\nas its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
+      "description": "Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and the job\u0027s report as data, its uri a resource whose text is that report; the report ends with the\nrun as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
       "type": "integer",
       "default": 60
     }
@@ -107,7 +107,7 @@ The run is a job: it answers within wait with the result, or with the job to rea
 | `project` | `string` | yes | — | The project as a tar or tar.gz of its working folder, without build outputs and dependencies: the key of that archive exactly as list_objects shows it. Nothing else of the task is visible to the run. |
 | `toolchain` | `string?` | — | `null` | dotnet, node or python; omitted, it is found from the project's files. Name it when a project mixes them. |
 | `timeoutSeconds` | `integer?` | — | `null` | Seconds the whole run may take, restore and build included, from 1 to 1800; 600 when omitted. Past it the run is killed. |
-| `wait` | `integer` | — | `60` | Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when omitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with ok true and job, the URI of a resource whose text is the job's report; the report ends with the same answer as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again. |
+| `wait` | `integer` | — | `60` | Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when omitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with ok true and the job's report as data, its uri a resource whose text is that report; the report ends with the run as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again. |
 
 <details><summary>JSON Schema</summary>
 
@@ -136,7 +136,7 @@ The run is a job: it answers within wait with the result, or with the job to rea
       "default": null
     },
     "wait": {
-      "description": "Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and job, the URI of a resource whose text is the job\u0027s report; the report ends with the same answer\nas its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
+      "description": "Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when\nomitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with\nok true and the job\u0027s report as data, its uri a resource whose text is that report; the report ends with the\nrun as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.",
       "type": "integer",
       "default": 60
     }

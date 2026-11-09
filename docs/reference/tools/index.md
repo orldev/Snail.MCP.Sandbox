@@ -12,4 +12,4 @@ An MCP server over streamable HTTP that runs Python a model wrote, or a whole pr
 | [`sandbox_diagnose`](run.md#sandbox_diagnose) | Running code and tests in a sandbox | Whether this sandbox can run code at all: the node's Docker daemon answers, it has the isolating runtime, and the executor image is there. |
 | [`sandbox_run_python`](run.md#sandbox_run_python) | Running code and tests in a sandbox | Run a Python 3.12 program in a fresh container and get back what it printed and the files it wrote. The container has no network, keeps nothing between calls… |
 | [`sandbox_run_tests`](run.md#sandbox_run_tests) | Running code and tests in a sandbox | Build a project and run its tests in a fresh container, and get back how many passed and which failed. The toolchain is found from the files: a .slnx, .sln, … |
-| [`find_tool`](discovery.md#find_tool) | Finding a tool | Which tool does a thing, said in your own words — "draw a chart from this table", "check the node before I try again". |
+| [`find_tool`](discovery.md#find_tool) | Finding a tool | Finds tools of this server for a task in words, best first, with the parameters of each. |

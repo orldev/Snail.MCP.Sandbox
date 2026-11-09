@@ -5,6 +5,6 @@
   ],
   "families": [
     { "type": "RunTools", "slug": "run", "title": "Running code and tests in a sandbox" },
-    { "type": "DiscoveryTools", "slug": "discovery", "title": "Finding a tool" }
+    { "tools": ["find_tool"], "slug": "discovery", "title": "Finding a tool" }
   ]
 }

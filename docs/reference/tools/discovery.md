@@ -2,17 +2,15 @@
 
 ## <code>find_<wbr>tool</code>
 
-Which tool does a thing, said in your own words — "draw a chart from this table", "check the node
-before I try again". Answers with the tools that match: the name to call and every argument each of
-them takes, with what it means. When nothing matches it answers with all of them, because this
-server has few enough tools that the whole list is a better answer than a wrong one.
+Finds tools of this server for a task in words, best first, with the parameters of each. Ask it before deciding that no tool exists.
 
 *read-only · repeat-safe · stays on this machine.*
 
 | Parameter | Type | Required | Default | Description |
 | --- | --- | --- | --- | --- |
-| `task` | `string` | yes | — | What you are trying to do, in the words you would use to describe it. |
-| `limit` | `integer` | — | `5` | How many tools to return at most; 5 by default, and never more than this server has. |
+| `task` | `string?` | — | `null` | What you are trying to do, in words. |
+| `limit` | `integer` | — | `5` | How many tools to name, 1 to 20. |
+| `intent` | `string?` | — | `null` | Same as task. |
 
 <details><summary>JSON Schema</summary>
 
@@ -21,18 +19,27 @@ server has few enough tools that the whole list is a better answer than a wrong 
   "type": "object",
   "properties": {
     "task": {
-      "description": "What you are trying to do, in the words you would use to describe it.",
-      "type": "string"
+      "description": "What you are trying to do, in words.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
     },
     "limit": {
-      "description": "How many tools to return at most; 5 by default, and never more than this server has.",
+      "description": "How many tools to name, 1 to 20.",
       "type": "integer",
       "default": 5
+    },
+    "intent": {
+      "description": "Same as task.",
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
     }
-  },
-  "required": [
-    "task"
-  ]
+  }
 }
 ```
 

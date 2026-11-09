@@ -16,9 +16,9 @@
       "environmentVariables": [
         {
           "name": "SNAIL_MCP_SANDBOX_URL",
-          "description": "Where the server listens; only the port is read, on every interface of the container.",
+          "description": "Where the server listens: its port on every interface of the container; outside one, loopback only, and an address at 0.0.0.0 or beyond loopback is refused at the start.",
           "isRequired": false,
-          "default": "http://0.0.0.0:8826/"
+          "default": "http://127.0.0.1:8826/"
         },
         {
           "name": "SNAIL_MCP_SANDBOX_RUNTIME",

@@ -83,7 +83,7 @@ public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, 
     }
 
     /// <summary>The refusal of a wait outside what a call may ask for, or null when the wait is one.</summary>
-    /// <remarks>A delay past some forty-nine days throws in the runtime, and the description promises a range; the range is held here, as timeoutSeconds is.</remarks>
+    /// <remarks>The description promises a range, and it is held here, as timeoutSeconds is: the jobs would wait out a longer one, but a wait past the longest run and its grace is a mistake of the call.</remarks>
     private static CallToolResult? Waiting(int wait) =>
         wait is >= 0 and <= ToolDescriptions.LongestWait
             ? null
