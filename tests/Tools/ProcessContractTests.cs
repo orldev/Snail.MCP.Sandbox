@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using ModelContextProtocol.Client;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Tests.Tools;
 
@@ -101,7 +102,7 @@ public sealed class ProcessContractTests : IAsyncLifetime
 
         Assert.True(result.IsError);
         Assert.Contains("could not run the code", result.Error(), StringComparison.Ordinal);
-        Assert.Equal("internal", result.Type());
+        Assert.Equal(ToolFailures.Internal, result.Type());
     }
 
     /// <summary>No host is allowed by default, so the link is refused before anything is downloaded or a container exists.</summary>
@@ -128,7 +129,7 @@ public sealed class ProcessContractTests : IAsyncLifetime
         var result = await session.CallToolAsync("sandbox_run_python", new Dictionary<string, object?> { ["code"] = "print(1)", ["wait"] = -1 }, cancellationToken: cancellation.Token);
 
         Assert.True(result.IsError);
-        Assert.Equal("arguments", result.Type());
+        Assert.Equal(ToolFailures.Arguments, result.Type());
     }
 
     /// <summary>

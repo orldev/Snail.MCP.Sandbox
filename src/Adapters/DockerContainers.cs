@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.MCP.Sandbox.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Adapters;
 
@@ -70,7 +71,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
             return Answer.Failed(
                 $"The sandbox could not run the code: {exception.Message}",
                 "This is the sandbox failing, not the code. Call once more; if it fails again, say so in the answer.",
-                FailureTypes.Internal);
+                ToolFailures.Internal);
         }
     }
 

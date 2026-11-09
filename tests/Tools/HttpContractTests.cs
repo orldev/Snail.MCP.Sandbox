@@ -1,5 +1,6 @@
 using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
+using Snail.Sdk.Mcp.Hosting;
 using Snail.Sdk.Mcp.Hosting.Jobs;
 using Snail.Sdk.Mcp.JobClient;
 
@@ -85,7 +86,7 @@ public sealed class HttpContractTests(SandboxServer factory) : IClassFixture<San
         var refused = await session.CallToolAsync("sandbox_run_python", new Dictionary<string, object?> { ["code"] = "print(1)", ["timeout"] = 5 });
 
         Assert.True(refused.IsError);
-        Assert.Equal("arguments", refused.Type());
+        Assert.Equal(ToolFailures.Arguments, refused.Type());
         Assert.Contains("timeoutSeconds", refused.Text(), StringComparison.Ordinal);
     }
 

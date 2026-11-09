@@ -3,6 +3,7 @@ using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.MCP.Sandbox.Configuration;
 using Snail.MCP.Sandbox.Domain;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Tests.Application;
 
@@ -41,7 +42,7 @@ public sealed class RunsTests
     {
         var answer = await Runs(new Inputs(), new Containers()).RunAsync(code, file is null ? null : [file], seconds, CancellationToken.None);
 
-        Assert.Equal("arguments", answer.Type);
+        Assert.Equal(ToolFailures.Arguments, answer.Type);
     }
 
     /// <summary>A node past its places and its queue is <c>busy</c>: worth a later call, unlike a node that is not set up.</summary>

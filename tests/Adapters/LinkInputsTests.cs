@@ -2,6 +2,7 @@ using System.Net;
 using Microsoft.Extensions.Options;
 using Snail.MCP.Sandbox.Adapters;
 using Snail.MCP.Sandbox.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Tests.Adapters;
 
@@ -94,7 +95,7 @@ public sealed class LinkInputsTests : IDisposable
 
     [Fact]
     public async Task FetchAsync_MoreFilesThanAllowed_IsRefused() =>
-        Assert.Equal("arguments", (await Inputs(_ => Body("x"), maxFiles: 1)
+        Assert.Equal(ToolFailures.Arguments, (await Inputs(_ => Body("x"), maxFiles: 1)
             .FetchAsync([new Uri("http://minio:9000/b/a.csv"), new Uri("http://minio:9000/b/b.csv")], _folder, CancellationToken.None)).Type);
 
     /// <summary>A crafted link must not climb out of the run's folder, and two files of one name must not overwrite each other.</summary>

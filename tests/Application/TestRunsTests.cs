@@ -3,6 +3,7 @@ using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.MCP.Sandbox.Configuration;
 using Snail.MCP.Sandbox.Domain;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Tests.Application;
 
@@ -58,7 +59,7 @@ public sealed class TestRunsTests
     {
         var answer = await Runs(new Inputs(), new Archives(), new Containers()).RunAsync(project, toolchain, seconds, CancellationToken.None);
 
-        Assert.Equal("arguments", answer.Type);
+        Assert.Equal(ToolFailures.Arguments, answer.Type);
     }
 
     [Fact]

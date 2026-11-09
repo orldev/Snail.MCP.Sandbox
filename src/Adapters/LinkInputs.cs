@@ -3,6 +3,7 @@ using Microsoft.Extensions.Options;
 using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.MCP.Sandbox.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Adapters;
 
@@ -28,7 +29,7 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
             return Answer.Failed(
                 $"{links.Count} files were passed; one run may read {limits.MaxInputFiles}.",
                 "Pass only the files this piece of code needs.",
-                FailureTypes.Arguments);
+                ToolFailures.Arguments);
 
         if (links.FirstOrDefault(link => !IsAllowed(link, limits.AllowedHosts)) is { } forbidden)
             return Answer.Failed(

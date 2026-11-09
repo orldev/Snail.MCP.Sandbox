@@ -3,6 +3,7 @@ using ModelContextProtocol.Protocol;
 using ModelContextProtocol.Server;
 using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
+using Snail.Sdk.Mcp.Hosting;
 using Snail.Sdk.Mcp.Hosting.Jobs;
 using Snail.Sdk.Mcp.Hosting.Sessions;
 using Snail.Sdk.Mcp.Http;
@@ -87,7 +88,7 @@ public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, 
     private static CallToolResult? Waiting(int wait) =>
         wait is >= 0 and <= ToolDescriptions.LongestWait
             ? null
-            : ToolAnswer.Failed($"wait was {wait}; a call may wait from 0 to {ToolDescriptions.LongestWait} seconds.", Messages.WaitOutsideTheLimit, FailureTypes.Arguments);
+            : ToolAnswer.Failed($"wait was {wait}; a call may wait from 0 to {ToolDescriptions.LongestWait} seconds.", Messages.WaitOutsideTheLimit, ToolFailures.Arguments);
 
     /// <summary>The answer handed to the call that is waiting on it, before it becomes the job's result.</summary>
     /// <remarks>The call tells a run from its files' own bytes; the result, base64, is for a client that reads the job later.</remarks>

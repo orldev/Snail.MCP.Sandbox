@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.MCP.Sandbox.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Application;
 
@@ -27,25 +28,25 @@ public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestCon
         var named = string.IsNullOrWhiteSpace(toolchain) ? null : Toolchains.Named(toolchain);
 
         if (string.IsNullOrWhiteSpace(project))
-            return Answer.Failed("There is no project to test.", "Pass the key of the project's archive as list_objects shows it.", FailureTypes.Arguments);
+            return Answer.Failed("There is no project to test.", "Pass the key of the project's archive as list_objects shows it.", ToolFailures.Arguments);
 
         if (!Uri.TryCreate(project, UriKind.Absolute, out var link))
             return Answer.Failed(
                 $"The project {project} reached the sandbox as a name, not as a link, so it cannot be read.",
                 "Pass the key of this task's project archive exactly as list_objects shows it; the platform signs it. A path on your own disk does not exist here.",
-                FailureTypes.Arguments);
+                ToolFailures.Arguments);
 
         if (!string.IsNullOrWhiteSpace(toolchain) && named is null)
             return Answer.Failed(
                 $"There is no toolchain called {toolchain}.",
                 $"Name one of {string.Join(", ", Toolchains.Names)}, or leave it out to have it found from the files.",
-                FailureTypes.Arguments);
+                ToolFailures.Arguments);
 
         if (seconds <= 0 || seconds > limits.MaxTestTimeoutSeconds)
             return Answer.Failed(
                 $"timeoutSeconds was {seconds}; a test run may take from 1 to {limits.MaxTestTimeoutSeconds} seconds.",
                 "Run fewer tests in one call when the project needs more than that.",
-                FailureTypes.Arguments);
+                ToolFailures.Arguments);
 
         if (Interlocked.Increment(ref _asked) > limits.MaxConcurrentTestRuns + limits.MaxQueuedTestRuns)
         {
@@ -95,7 +96,7 @@ public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestCon
             return fetched.As<TestReport>();
 
         if (fetched.Value is not [var archive])
-            return Answer.Failed("The project was not fetched.", type: FailureTypes.Internal);
+            return Answer.Failed("The project was not fetched.", type: ToolFailures.Internal);
 
         var packed = await archives.RepackAsync(archive.Path, folder, cancellationToken);
         if (!packed.TryGet(out var project))

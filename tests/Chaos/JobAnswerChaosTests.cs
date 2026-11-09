@@ -1,5 +1,6 @@
 using ModelContextProtocol.Protocol;
 using Snail.MCP.Sandbox.Tools;
+using Snail.Sdk.Mcp.Hosting;
 using Snail.Sdk.Mcp.Hosting.Jobs;
 
 namespace Snail.MCP.Sandbox.Tests.Chaos;
@@ -39,7 +40,7 @@ public sealed class JobAnswerChaosTests
         var result = ToolResponse.Run(report);
 
         Assert.True(result.IsError);
-        Assert.Equal("internal", result.Type());
+        Assert.Equal(ToolFailures.Internal, result.Type());
         Assert.Equal(Messages.SandboxFailed, result.Hint());
     }
 }

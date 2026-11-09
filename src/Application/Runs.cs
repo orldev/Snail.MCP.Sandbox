@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Options;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.MCP.Sandbox.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Application;
 
@@ -25,19 +26,19 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
         var wanted = files ?? [];
 
         if (string.IsNullOrWhiteSpace(code))
-            return Answer.Failed("There is no code to run.", "Pass the whole program in code; nothing from an earlier call is kept.", FailureTypes.Arguments);
+            return Answer.Failed("There is no code to run.", "Pass the whole program in code; nothing from an earlier call is kept.", ToolFailures.Arguments);
 
         if (seconds <= 0 || seconds > limits.MaxTimeoutSeconds)
             return Answer.Failed(
                 $"timeoutSeconds was {seconds}; a run may take from 1 to {limits.MaxTimeoutSeconds} seconds.",
                 "Do less in one call when the work needs more than that.",
-                FailureTypes.Arguments);
+                ToolFailures.Arguments);
 
         if (wanted.FirstOrDefault(file => !Uri.TryCreate(file, UriKind.Absolute, out _)) is { } unsigned)
             return Answer.Failed(
                 $"The file {unsigned} reached the sandbox as a name, not as a link, so it cannot be read.",
                 "Pass the keys of this task's files exactly as list_objects shows them; the platform signs those. A path on your own disk does not exist here.",
-                FailureTypes.Arguments);
+                ToolFailures.Arguments);
 
         if (Interlocked.Increment(ref _asked) > limits.MaxConcurrentRuns + limits.MaxQueuedRuns)
         {
