@@ -29,9 +29,6 @@ public static class SandboxSettings
     /// </remarks>
     private static readonly McpEndpointOptions Reach = new() { Reach = McpReach.LoopbackOrContainer, Server = Name };
 
-    /// <summary>Where the server listens, read from <c>SNAIL_MCP_SANDBOX_URL</c> (or <c>_PORT</c>).</summary>
-    public static McpEndpoint Endpoint => EndpointOf(Read());
-
     /// <summary>The endpoint <paramref name="settings"/> name, over HTTP, the only transport this server has.</summary>
     /// <remarks>
     /// Snail.Sdk.Mcp's reading with the reach <see cref="McpReach.LoopbackOrContainer"/>: inside the container — the

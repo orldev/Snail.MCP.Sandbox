@@ -67,6 +67,18 @@ public sealed class RunsTests
         Assert.Equal(0, containers.Started);
     }
 
+    /// <summary>A failure to fetch is handed on whole: carried by hand, its type was lost and a job of the run ended "failed".</summary>
+    [Fact]
+    public async Task RunAsync_FetchFailsWithAType_PassesTheTypeOn()
+    {
+        var inputs = new Inputs { Failure = "sales.csv: the store did not answer.", FailureType = "unreachable" };
+
+        var answer = await Runs(inputs, new Containers()).RunAsync("print(1)", ["http://minio:9000/b/sales.csv"], null, CancellationToken.None);
+
+        Assert.Equal("unreachable", answer.Type);
+        Assert.Equal("a hint", answer.Hint);
+    }
+
     /// <summary>The downloaded files are a copy of a task's data on the node's disk; they must not outlive the call, even a failed one.</summary>
     [Fact]
     public async Task RunAsync_ContainerThrows_StillDiscardsTheFetchedFiles()
@@ -106,6 +118,8 @@ public sealed class RunsTests
     {
         public string? Failure { get; init; }
 
+        public string? FailureType { get; init; }
+
         public int Fetched { get; private set; }
 
         public List<string> Folders { get; } = [];
@@ -119,7 +133,7 @@ public sealed class RunsTests
 
             return Task.FromResult(Failure is null
                 ? Answer.Ok<IReadOnlyList<InputFile>>([.. links.Select(link => new InputFile(link.Segments[^1], Path.Combine(folder, link.Segments[^1]), 1))])
-                : Answer.Failed<IReadOnlyList<InputFile>>(Failure));
+                : Answer.Failed<IReadOnlyList<InputFile>>(Failure, "a hint", FailureType));
         }
 
         public void Discard(string folder) => Discarded.Add(folder);

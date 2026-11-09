@@ -148,6 +148,27 @@ public sealed class TestRunsTests
         Assert.Equal("The sandbox node has no runsc runtime.", answer.Error);
     }
 
+    /// <summary>
+    /// A failure of a stage is handed on whole: carried by hand into a failure of the report, its error and hint were kept
+    /// and its type was lost, so a job of the run ended "failed" whatever kind the stage had named.
+    /// </summary>
+    [Theory]
+    [InlineData("fetch")]
+    [InlineData("repack")]
+    [InlineData("test")]
+    public async Task RunAsync_StageFailsWithAType_PassesTheTypeOn(string stage)
+    {
+        var inputs = new Inputs { Failure = stage == "fetch" ? "refused" : null, FailureType = "unreachable" };
+        var archives = new Archives { Refusal = stage == "repack" ? "refused" : null, RefusalType = "unreachable" };
+        var containers = new Containers { Refusal = stage == "test" ? "refused" : null, RefusalType = "unreachable" };
+
+        var answer = await Runs(inputs, archives, containers).RunAsync(Link, null, null, CancellationToken.None);
+
+        Assert.Equal("refused", answer.Error);
+        Assert.Equal("a hint", answer.Hint);
+        Assert.Equal("unreachable", answer.Type);
+    }
+
     internal static TestRuns Runs(Inputs inputs, Archives archives, Containers containers, int places = 2, int queued = 4) =>
         new(inputs, archives, containers, Options.Create(new SandboxOptions { MaxConcurrentTestRuns = places, MaxQueuedTestRuns = queued }));
 
@@ -156,6 +177,8 @@ public sealed class TestRunsTests
     internal sealed class Inputs : IInputs
     {
         public string? Failure { get; init; }
+
+        public string? FailureType { get; init; }
 
         public int Fetched { get; private set; }
 
@@ -170,7 +193,7 @@ public sealed class TestRunsTests
 
             return Task.FromResult(Failure is null
                 ? Answer.Ok<IReadOnlyList<InputFile>>([.. links.Select(link => new InputFile(link.Segments[^1], Path.Combine(folder, link.Segments[^1]), 1))])
-                : Answer.Failed<IReadOnlyList<InputFile>>(Failure));
+                : Answer.Failed<IReadOnlyList<InputFile>>(Failure, "a hint", FailureType));
         }
 
         public void Discard(string folder)
@@ -188,10 +211,12 @@ public sealed class TestRunsTests
 
         public string? Refusal { get; init; }
 
+        public string? RefusalType { get; init; }
+
         public Task<Answer<PackedProject>> RepackAsync(string archive, string folder, CancellationToken cancellationToken) =>
             Task.FromResult(Refusal is null
                 ? Answer.Ok(new PackedProject(Path.Combine(folder, "project.tar"), Paths, Omitted))
-                : Answer.Failed<PackedProject>(Refusal));
+                : Answer.Failed<PackedProject>(Refusal, "a hint", RefusalType));
     }
 
     internal sealed class Containers : ITestContainers
@@ -201,6 +226,8 @@ public sealed class TestRunsTests
         public TestExecution Execution { get; init; } = new([Ran(Stage.Restore, 0, string.Empty), Ran(Stage.Build, 0, string.Empty), Ran(Stage.Test, 0, "Passed!")], new TestCounts(1, 1, 0, 0, []));
 
         public string? Refusal { get; init; }
+
+        public string? RefusalType { get; init; }
 
         public bool Throws { get; init; }
 
@@ -228,7 +255,7 @@ public sealed class TestRunsTests
 
                 await Gate;
 
-                return Refusal is null ? Answer.Ok(Execution) : Answer.Failed<TestExecution>(Refusal);
+                return Refusal is null ? Answer.Ok(Execution) : Answer.Failed<TestExecution>(Refusal, "a hint", RefusalType);
             }
             finally
             {

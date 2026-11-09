@@ -6,8 +6,9 @@ using Snail.Sdk.Mcp.Http;
 // A setting the operator got wrong is said in one line with exit code 1, not as a crash with a trace and 134.
 try
 {
-    var app = McpHttpHost.CreateBuilder(args, SandboxSettings.Endpoint)
-        .ConfigureSandboxServer()
+    var settings = SandboxSettings.Read();
+    var app = McpHttpHost.CreateBuilder(args, SandboxSettings.EndpointOf(settings), settings)
+        .ConfigureSandboxServer(settings)
         .Build()
         .UseSandboxEndpoints();
 

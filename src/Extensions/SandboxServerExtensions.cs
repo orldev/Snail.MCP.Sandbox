@@ -32,19 +32,26 @@ public static class SandboxServerExtensions
 
     extension(WebApplicationBuilder builder)
     {
-        /// <summary>The tools, the run and test services, and the settings, read from the settings file and the <c>SNAIL_MCP_SANDBOX_</c> variables only.</summary>
+        /// <summary>The tools, the run and test services, and the options, bound from <paramref name="settings"/> — the settings file and the <c>SNAIL_MCP_SANDBOX_</c> variables only (<see cref="SandboxSettings.Read()"/>).</summary>
         /// <remarks>
-        /// The host is Snail.Sdk.Mcp.Http's for the endpoint of <see cref="SandboxSettings.Endpoint"/> — every interface in the
+        /// <para>
+        /// The settings are the ones the program read once, for the endpoint and the host as well. Read a second time here,
+        /// they gave a test serving the server in its own process the developer's settings file and variables, whatever it
+        /// built the host with; a test hands it settings of its own.
+        /// </para>
+        /// <para>
+        /// The host is Snail.Sdk.Mcp.Http's for the endpoint of <see cref="SandboxSettings.EndpointOf"/> — every interface in the
         /// container, log lines on stderr, where the container's log driver collects them, the heap trimmed when idle. A tool
         /// that throws answers in the envelope; a session's grant (<c>?tool=</c>) is held at the door and hides what it
         /// withholds; <c>find_tool</c> searches what the session may call; a job belongs to the MCP session that started it
         /// (<c>JobOwners.Session</c>), so a session reads and watches only the runs it started.
+        /// </para>
         /// </remarks>
-        public WebApplicationBuilder ConfigureSandboxServer()
+        public WebApplicationBuilder ConfigureSandboxServer(IConfiguration settings)
         {
             builder.Services
                 .AddOptions<SandboxOptions>()
-                .Bind(SandboxSettings.Read())
+                .Bind(settings)
                 .ValidateOnStart();
             builder.Services.AddSingleton<IValidateOptions<SandboxOptions>, SandboxOptionsValidation>();
 

@@ -83,22 +83,26 @@ public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestCon
     /// <inheritdoc />
     public void Dispose() => _places.Dispose();
 
+    /// <remarks>A stage's failure is handed on whole (<c>As&lt;T&gt;</c>): carried by hand, its error and hint were kept and its type was lost.</remarks>
     private async Task<Answer<TestReport>> TestedAsync(Uri link, Toolchain? named, TimeSpan timeout, string folder, CancellationToken cancellationToken)
     {
         var fetched = await inputs.FetchAsync([link], Path.Combine(folder, "in"), cancellationToken);
+        if (!fetched.IsSuccess)
+            return fetched.As<TestReport>();
+
         if (fetched.Value is not [var archive])
-            return Answer.Failed<TestReport>(fetched.Error ?? "The project was not fetched.", fetched.Hint);
+            return Answer.Failed("The project was not fetched.");
 
         var packed = await archives.RepackAsync(archive.Path, folder, cancellationToken);
-        if (packed.Value is not { } project)
-            return Answer.Failed<TestReport>(packed.Error ?? "The project archive was not read.", packed.Hint);
+        if (!packed.TryGet(out var project))
+            return packed.As<TestReport>();
 
         if ((named ?? Toolchains.Of(project.Paths)) is not { } toolchain)
             return Answer.Ok(new TestReport(null, TestOutcome.NothingToBuild, TimeSpan.Zero) { Omitted = project.Omitted });
 
         var executed = await containers.TestAsync(project, toolchain, timeout, cancellationToken);
-        if (executed.Value is not { } execution)
-            return Answer.Failed<TestReport>(executed.Error ?? "The tests did not run.", executed.Hint);
+        if (!executed.TryGet(out var execution))
+            return executed.As<TestReport>();
 
         var deciding = Toolchains.Deciding(execution.Stages);
 

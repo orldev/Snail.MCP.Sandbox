@@ -60,6 +60,7 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
     public void Dispose() => _places.Dispose();
 
     /// <summary>The run once it has a place: its files fetched into a folder of its own, the code run, the folder forgotten.</summary>
+    /// <remarks>A failure to fetch is handed on whole (<c>As&lt;T&gt;</c>): carried by hand, its error and hint were kept and its type was lost.</remarks>
     private async Task<Answer<RunOutcome>> PlacedAsync(string code, IReadOnlyList<string> wanted, TimeSpan timeout, SandboxOptions limits, CancellationToken cancellationToken)
     {
         await _places.WaitAsync(cancellationToken);
@@ -68,8 +69,8 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
         try
         {
             var fetched = await inputs.FetchAsync([.. wanted.Select(file => new Uri(file))], folder, cancellationToken);
-            if (fetched.Value is not { } placed)
-                return Answer.Failed<RunOutcome>(fetched.Error ?? "The files were not fetched.", fetched.Hint);
+            if (!fetched.TryGet(out var placed))
+                return fetched.As<RunOutcome>();
 
             return await containers.RunAsync(code, placed, timeout, cancellationToken);
         }
