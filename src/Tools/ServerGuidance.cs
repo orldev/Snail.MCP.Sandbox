@@ -21,8 +21,9 @@ public static class ServerGuidance
         sandbox_run_tests builds a whole project and runs its tests: pass the key of the project's archive. It answers
         with an outcome and the counts; failures name the tests that failed and why. Fix what they name and run again.
 
-        Both are jobs: a call answers within its wait with the result, or with the job's resource when the run is
-        still going — a client that can wait awaits that resource, and finds the same answer in its result.
+        Both are jobs: a call answers within its wait with the result, or with the job's report when the run is
+        still going — a client that can wait awaits that resource, and finds the run as its result. A run that could
+        not happen ends its job failed, with the same error and hint.
 
         When a call fails before the program starts, sandbox_diagnose says whether the node can run code at all.
         find_tool names the tool for a thing said in your own words, and the arguments it takes.

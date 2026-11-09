@@ -26,4 +26,20 @@ public sealed class JobAnswerChaosTests
         Assert.Contains("Connection refused", text, StringComparison.Ordinal);
         Assert.DoesNotContain("shutting down", text, StringComparison.Ordinal);
     }
+
+    /// <summary>
+    /// Breaks the work itself: a run whose work throws — the daemon gone mid-run — ends its job as the server's own failure,
+    /// of the type <c>internal</c>, never <c>failed</c> as a refusal of the program would read, and the hint says the sandbox failed.
+    /// </summary>
+    [Fact]
+    public async Task Run_WorkThrows_IsTheSandboxsOwnFailure()
+    {
+        var report = await new Jobs("sandbox").Start("python", null, (_, _) => Task.FromException<Answer<RunSummary>>(new InvalidOperationException("the daemon went away")), ToolResponse.RunResult).Completion;
+
+        var result = ToolResponse.Run(report);
+
+        Assert.True(result.IsError);
+        Assert.Equal("internal", result.Type());
+        Assert.Equal(Messages.SandboxFailed, result.Hint());
+    }
 }

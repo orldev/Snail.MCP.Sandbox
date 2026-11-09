@@ -4,6 +4,8 @@ using ModelContextProtocol.Server;
 using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.Sdk.Mcp.Hosting.Jobs;
+using Snail.Sdk.Mcp.Hosting.Sessions;
+using Snail.Sdk.Mcp.Http;
 
 namespace Snail.MCP.Sandbox.Tools;
 
@@ -18,11 +20,12 @@ namespace Snail.MCP.Sandbox.Tools;
 /// A run and a test run are jobs: the work outlasts a call — a build and its tests take minutes — so the tool starts
 /// it and answers within the wait the client allows, with the answer when the work ended in time and with the job's
 /// resource when it did not. The run goes on when the client that started it is gone, and ends with the server. The
-/// job belongs to the session that started it: that is who awaits it, and who the kept results are counted for.
+/// job belongs to the session that started it (<c>JobOwners.Session</c>): that is who awaits it, and who the kept
+/// results are counted for. A run that could not happen ends its job failed with the refusal's error, hint and type.
 /// </para>
 /// </remarks>
 [McpServerToolType]
-public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, Jobs jobs, SessionOwner owner)
+public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, Jobs jobs, IServiceProvider services)
 {
     /// <summary>Whether the node can run code at all, without running any.</summary>
     [McpServerTool(Name = "sandbox_diagnose", ReadOnly = true, Destructive = false, Idempotent = true, OpenWorld = false)]
@@ -44,7 +47,11 @@ public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, 
             return refused;
 
         var answered = new TaskCompletionSource<Answer<RunOutcome>>();
-        var job = jobs.Start("python", owner.Current, async (_, token) => ToolResponse.Answered(Handed(answered, await runs.RunAsync(code, files, timeoutSeconds, token))), ToolResponse.RunResult);
+        var job = jobs.Start(
+            "python",
+            JobOwners.Session(services),
+            async (_, token) => Handed(answered, await runs.RunAsync(code, files, timeoutSeconds, token)).Map(outcome => AnswerFields.Of(outcome, withContent: true)),
+            ToolResponse.RunResult);
 
         var report = await job.ForAsync(TimeSpan.FromSeconds(wait), cancellationToken);
 
@@ -64,12 +71,15 @@ public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, 
         if (Waiting(wait) is { } refused)
             return refused;
 
-        var answered = new TaskCompletionSource<Answer<TestReport>>();
-        var job = jobs.Start("tests", owner.Current, async (_, token) => ToolResponse.Answered(Handed(answered, await tests.RunAsync(project, toolchain, timeoutSeconds, token))), ToolResponse.TestResult);
+        var job = jobs.Start(
+            "tests",
+            JobOwners.Session(services),
+            async (_, token) => (await tests.RunAsync(project, toolchain, timeoutSeconds, token)).Map(AnswerFields.Of),
+            ToolResponse.TestResult);
 
         var report = await job.ForAsync(TimeSpan.FromSeconds(wait), cancellationToken);
 
-        return ToolResponse.Tests(report, await HandedAsync(answered));
+        return ToolResponse.Tests(report);
     }
 
     /// <summary>The refusal of a wait outside what a call may ask for, or null when the wait is one.</summary>
@@ -77,9 +87,10 @@ public sealed class RunTools(Runs runs, TestRuns tests, IContainers containers, 
     private static CallToolResult? Waiting(int wait) =>
         wait is >= 0 and <= ToolDescriptions.LongestWait
             ? null
-            : ToolResponse.Failure($"wait was {wait}; a call may wait from 0 to {ToolDescriptions.LongestWait} seconds.", Messages.WaitOutsideTheLimit);
+            : ToolAnswer.Failed($"wait was {wait}; a call may wait from 0 to {ToolDescriptions.LongestWait} seconds.", Messages.WaitOutsideTheLimit);
 
     /// <summary>The answer handed to the call that is waiting on it, before it becomes the job's result.</summary>
+    /// <remarks>The call tells a run from its files' own bytes; the result, base64, is for a client that reads the job later.</remarks>
     private static T Handed<T>(TaskCompletionSource<T> answered, T answer)
     {
         answered.TrySetResult(answer);

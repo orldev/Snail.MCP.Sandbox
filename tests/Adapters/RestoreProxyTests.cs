@@ -25,7 +25,7 @@ public sealed class RestoreProxyTests : IAsyncLifetime
         _upstream.Start();
         _ = EchoAsync();
 
-        int port = FreePort();
+        int port = Ports.Free();
         _proxy = new RestoreProxy(Options.Create(new SandboxOptions { RestoreProxy = $"http://127.0.0.1:{port}", RestoreProxyPort = port, RestoreHosts = ["127.0.0.1", "localhost"] }), NullLogger<RestoreProxy>.Instance);
         await _proxy.StartAsync(_stopping.Token);
 
@@ -207,15 +207,5 @@ public sealed class RestoreProxyTests : IAsyncLifetime
         catch (Exception exception) when (exception is OperationCanceledException or SocketException or ObjectDisposedException)
         {
         }
-    }
-
-    private static int FreePort()
-    {
-        var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        int port = ((IPEndPoint)probe.LocalEndpoint).Port;
-        probe.Stop();
-
-        return port;
     }
 }

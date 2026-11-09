@@ -1,8 +1,5 @@
 using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
 using ModelContextProtocol.Client;
-using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Tests.Tools;
 
@@ -11,9 +8,10 @@ namespace Snail.MCP.Sandbox.Tests.Tools;
 /// names — asked over HTTP through every tool once.
 /// </summary>
 /// <remarks>
-/// The server has no stdio transport, so the contract is the HTTP one the node serves. The Docker endpoint names a socket
-/// that does not exist: no container is made or swept, and the tools that need the daemon have to say so in an answer
-/// of their own rather than fail the call.
+/// The server has no stdio transport, so the contract is the HTTP one the node serves, started by Snail.Sdk.Mcp.Testing on
+/// a free loopback port and ready once /healthz answers. The Docker endpoint names a socket that does not exist: no
+/// container is made or swept, and the tools that need the daemon have to say so in an answer of their own rather than
+/// fail the call.
 /// </remarks>
 public sealed class ProcessContractTests : IAsyncLifetime
 {
@@ -22,58 +20,19 @@ public sealed class ProcessContractTests : IAsyncLifetime
     private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(60);
 
     private readonly string _workRoot = TestFolder.Create();
-    private readonly Uri _address = new($"http://127.0.0.1:{FreePort()}");
-    private Process _server = default!;
+    private HttpServerProgram _server = default!;
 
-    public async Task InitializeAsync()
-    {
-        var (command, arguments) = ServerProgram.Command("Snail.MCP.Sandbox", ServerVariable);
-        var start = new ProcessStartInfo(command, arguments)
+    public async Task InitializeAsync() =>
+        _server = await HttpServerProgram.StartAsync("Snail.MCP.Sandbox", ServerVariable, new Dictionary<string, string?>
         {
-            RedirectStandardInput = true,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true
-        };
+            ["SNAIL_MCP_SANDBOX_DOCKER_ENDPOINT"] = $"unix://{Path.Combine(_workRoot, "docker.sock")}",
+            ["SNAIL_MCP_SANDBOX_WORK_ROOT"] = _workRoot
+        });
 
-        start.Environment["SNAIL_MCP_SANDBOX_URL"] = _address.ToString();
-        start.Environment["SNAIL_MCP_SANDBOX_DOCKER_ENDPOINT"] = $"unix://{Path.Combine(_workRoot, "docker.sock")}";
-        start.Environment["SNAIL_MCP_SANDBOX_WORK_ROOT"] = _workRoot;
-        start.Environment[ServerSettings.FileVariableOf("sandbox")] = ServerProgram.NoSettingsFile;
-
-        _server = Process.Start(start)!;
-        _server.OutputDataReceived += (_, _) => { };
-        _server.ErrorDataReceived += (_, _) => { };
-        _server.BeginOutputReadLine();
-        _server.BeginErrorReadLine();
-
-        using var waiting = new CancellationTokenSource(Timeout);
-        using var http = new HttpClient { BaseAddress = _address };
-
-        while (true)
-        {
-            try
-            {
-                using var answer = await http.GetAsync(new Uri("/healthz", UriKind.Relative), waiting.Token);
-
-                if (answer.IsSuccessStatusCode)
-                    return;
-            }
-            catch (HttpRequestException) when (!_server.HasExited)
-            {
-            }
-
-            await Task.Delay(100, waiting.Token);
-        }
-    }
-
-    public Task DisposeAsync()
+    public async Task DisposeAsync()
     {
-        _server.Kill(entireProcessTree: true);
-        _server.WaitForExit();
-        _server.Dispose();
+        await _server.DisposeAsync();
         Directory.Delete(_workRoot, recursive: true);
-
-        return Task.CompletedTask;
     }
 
     [Fact]
@@ -102,6 +61,11 @@ public sealed class ProcessContractTests : IAsyncLifetime
         Assert.Empty(ToolGuards.Problems(tools.Select(tool => tool.ProtocolTool)));
     }
 
+    /// <summary>A page in a browser always sends an Origin and an agent's client never does: the refusal is Snail.Sdk.Mcp.Http's, kept by taking its host.</summary>
+    [Fact]
+    public async Task Endpoint_AsServed_RefusesBrowsersOnly() =>
+        Assert.Empty(await HttpGuards.ProblemsAsync(_server.Endpoint));
+
     [Fact]
     public async Task CallTool_FindTool_NamesTheToolForATask()
     {
@@ -110,7 +74,7 @@ public sealed class ProcessContractTests : IAsyncLifetime
 
         var result = await session.CallToolAsync("find_tool", new Dictionary<string, object?> { ["task"] = "draw a chart from this table" }, cancellationToken: cancellation.Token);
 
-        Assert.NotEqual(true, result.IsError);
+        Assert.True(result.IsOk(), result.Text());
         Assert.Contains("sandbox_run_python", result.Text(), StringComparison.Ordinal);
     }
 
@@ -123,7 +87,7 @@ public sealed class ProcessContractTests : IAsyncLifetime
         var result = await session.CallToolAsync("sandbox_diagnose", cancellationToken: cancellation.Token);
 
         Assert.True(result.IsError);
-        Assert.Contains("did not answer", result.Text(), StringComparison.Ordinal);
+        Assert.Contains("did not answer", result.Error(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -135,7 +99,7 @@ public sealed class ProcessContractTests : IAsyncLifetime
         var result = await session.CallToolAsync("sandbox_run_python", new Dictionary<string, object?> { ["code"] = "print('rows: 12')" }, cancellationToken: cancellation.Token);
 
         Assert.True(result.IsError);
-        Assert.Contains("could not run the code", result.Text(), StringComparison.Ordinal);
+        Assert.Contains("could not run the code", result.Error(), StringComparison.Ordinal);
     }
 
     /// <summary>No host is allowed by default, so the link is refused before anything is downloaded or a container exists.</summary>
@@ -148,17 +112,39 @@ public sealed class ProcessContractTests : IAsyncLifetime
         var result = await session.CallToolAsync("sandbox_run_tests", new Dictionary<string, object?> { ["project"] = "https://example.com/project.tar.gz" }, cancellationToken: cancellation.Token);
 
         Assert.True(result.IsError);
-        Assert.Contains("example.com", result.Text(), StringComparison.Ordinal);
+        Assert.Contains("example.com", result.Error(), StringComparison.Ordinal);
     }
 
-    private Task<McpClient> SessionAsync(CancellationToken cancellationToken) =>
-        McpClient.CreateAsync(new HttpClientTransport(new HttpClientTransportOptions { Endpoint = new Uri(_address, "/mcp") }), cancellationToken: cancellationToken);
-
-    private static int FreePort()
+    /// <summary>
+    /// The server holds no key, so on a machine it keeps to loopback (Snail.Sdk.Mcp's reach <c>LoopbackOrContainer</c>):
+    /// an address at every interface outside a container stops the program before it listens, and says which variable
+    /// asked for it — in one line with exit code 1, not as a crash with a trace. In the image, whose published port is the
+    /// boundary, every interface is the reading.
+    /// </summary>
+    [Fact]
+    public async Task Start_EveryInterfaceOutsideAContainer_StopsNamingTheVariable()
     {
-        using var listener = new TcpListener(IPAddress.Loopback, 0);
-        listener.Start();
+        using var cancellation = new CancellationTokenSource(Timeout);
+        var (program, arguments) = ServerProgram.Command("Snail.MCP.Sandbox", ServerVariable);
+        var start = new ProcessStartInfo(program) { RedirectStandardError = true, RedirectStandardOutput = true, UseShellExecute = false };
 
-        return ((IPEndPoint)listener.LocalEndpoint).Port;
+        foreach (var argument in arguments)
+            start.ArgumentList.Add(argument);
+
+        start.Environment["HOME"] = ServerProgram.Home;
+        start.Environment["SNAIL_MCP_SANDBOX_CONFIG"] = ServerProgram.NoSettingsFile;
+        start.Environment["SNAIL_MCP_SANDBOX_URL"] = $"http://0.0.0.0:{Ports.Free()}/";
+        start.Environment.Remove("DOTNET_RUNNING_IN_CONTAINER");
+
+        using var started = Process.Start(start)!;
+        var said = started.StandardError.ReadToEndAsync(cancellation.Token);
+        await started.WaitForExitAsync(cancellation.Token);
+
+        var stderr = await said;
+        Assert.Equal(1, started.ExitCode);
+        Assert.Contains("SNAIL_MCP_SANDBOX_URL", stderr, StringComparison.Ordinal);
+        Assert.DoesNotContain("   at ", stderr, StringComparison.Ordinal);
     }
+
+    private Task<McpClient> SessionAsync(CancellationToken cancellationToken) => _server.SessionAsync(cancellationToken: cancellationToken);
 }

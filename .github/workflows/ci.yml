@@ -1,9 +1,10 @@
 name: build and tests
 
 # The shared server CI of Snail.Sdk: the tests, the conformance check and the tool reference, then the server as it is
-# published — framework-dependent, as the image runs it — started and asked over HTTP, the only transport it has. Neither
-# needs Docker: the live tests skip unless SNAIL_SANDBOX_LIVE_RUNTIME names a runtime, and the started server is pointed
-# at a socket that does not exist. The images are images.yml.
+# published — native, compiled ahead of time for each platform the project ships to, as the image runs it — started on
+# a runner of that platform and asked over HTTP, the only transport it has. Neither needs Docker: the live tests skip
+# unless SNAIL_SANDBOX_LIVE_RUNTIME names a runtime, and the started server is pointed at a socket that does not exist.
+# The images are images.yml.
 
 on:
   push:

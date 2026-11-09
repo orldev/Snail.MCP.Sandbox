@@ -27,20 +27,20 @@ public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestCon
         var named = string.IsNullOrWhiteSpace(toolchain) ? null : Toolchains.Named(toolchain);
 
         if (string.IsNullOrWhiteSpace(project))
-            return Answer.Failed<TestReport>("There is no project to test.", "Pass the key of the project's archive as list_objects shows it.");
+            return Answer.Failed("There is no project to test.", "Pass the key of the project's archive as list_objects shows it.");
 
         if (!Uri.TryCreate(project, UriKind.Absolute, out var link))
-            return Answer.Failed<TestReport>(
+            return Answer.Failed(
                 $"The project {project} reached the sandbox as a name, not as a link, so it cannot be read.",
                 "Pass the key of this task's project archive exactly as list_objects shows it; the platform signs it. A path on your own disk does not exist here.");
 
         if (!string.IsNullOrWhiteSpace(toolchain) && named is null)
-            return Answer.Failed<TestReport>(
+            return Answer.Failed(
                 $"There is no toolchain called {toolchain}.",
                 $"Name one of {string.Join(", ", Toolchains.Names)}, or leave it out to have it found from the files.");
 
         if (seconds <= 0 || seconds > limits.MaxTestTimeoutSeconds)
-            return Answer.Failed<TestReport>(
+            return Answer.Failed(
                 $"timeoutSeconds was {seconds}; a test run may take from 1 to {limits.MaxTestTimeoutSeconds} seconds.",
                 "Run fewer tests in one call when the project needs more than that.");
 
@@ -48,7 +48,7 @@ public sealed class TestRuns(IInputs inputs, IProjectArchives archives, ITestCon
         {
             Interlocked.Decrement(ref _asked);
 
-            return Answer.Failed<TestReport>(
+            return Answer.Failed(
                 $"The sandbox node is full: {limits.MaxConcurrentTestRuns} test runs are going and {limits.MaxQueuedTestRuns} are waiting for a place.",
                 "Say so in the answer rather than calling again at once; a place frees when a test run ends.");
         }

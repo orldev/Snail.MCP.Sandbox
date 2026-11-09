@@ -1,6 +1,5 @@
 using System.Formats.Tar;
 using System.IO.Compression;
-using Snail.MCP.Sandbox.Application;
 
 namespace Snail.MCP.Sandbox.Adapters;
 
@@ -47,12 +46,12 @@ internal static class ProjectArchive
             while (await reader.GetNextEntryAsync(copyData: false, cancellationToken) is { } entry)
             {
                 if (await packing.AddAsync(entry, limits, cancellationToken) is { } refusal)
-                    return Answer.Failed<PackedProject>(refusal, Hint);
+                    return Answer.Failed(refusal, Hint);
             }
         }
         catch (Exception exception) when (exception is InvalidDataException or FormatException or EndOfStreamException)
         {
-            return Answer.Failed<PackedProject>($"The project archive could not be read: {exception.Message}", Hint);
+            return Answer.Failed($"The project archive could not be read: {exception.Message}", Hint);
         }
 
         return Answer.Ok(new PackedProject(target, [.. packing.Paths], [.. packing.Omitted]));

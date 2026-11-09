@@ -2,15 +2,11 @@ using System.Text.Json.Serialization;
 
 namespace Snail.MCP.Sandbox.Tools;
 
-/// <summary>What sandbox_run_python answers, and what its job's result carries: the run, or why there was none.</summary>
-/// <remarks>Data, error and hint are left out when null, so the text reads as it always has: ok with data, or ok false with error and hint.</remarks>
-public sealed record RunAnswer(
-    [property: JsonPropertyName("ok")] bool IsOk,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] RunSummary? Data,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Error,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Hint);
-
-/// <summary>What one run did, as the answer carries it.</summary>
+/// <summary>What one run did: the data of sandbox_run_python's answer, and its job's result.</summary>
+/// <remarks>
+/// The job's result is this record itself, not an envelope around it: a run that could not happen ends its job failed with
+/// the answer's error, hint and type (Snail.Sdk.Mcp's <c>Jobs.Start</c> of an <c>Answer</c>), so a result is always a run.
+/// </remarks>
 public sealed record RunSummary(
     int? ExitCode,
     [property: JsonPropertyName("timedOut")] bool HasTimedOut,
@@ -30,14 +26,7 @@ public sealed record OutFile(
     int Bytes,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Content);
 
-/// <summary>What sandbox_run_tests answers, and what its job's result carries: the test run, or why there was none.</summary>
-public sealed record TestAnswer(
-    [property: JsonPropertyName("ok")] bool IsOk,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] TestSummary? Data,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Error,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? Hint);
-
-/// <summary>What a test run found out, as the answer carries it.</summary>
+/// <summary>What a test run found out: the data of sandbox_run_tests' answer, and its job's result.</summary>
 public sealed record TestSummary(
     string? Toolchain,
     string Outcome,
@@ -56,24 +45,8 @@ public sealed record TestSummary(
 /// <summary>One test that failed, by name and message.</summary>
 public sealed record FailedTest(string Name, string Message);
 
-/// <summary>What a tool answers while its job still runs: where to read the job, and what to do with it.</summary>
-public sealed record PendingAnswer(
-    [property: JsonPropertyName("ok")] bool IsOk,
-    string Job,
-    string State,
-    double? Progress,
-    string Note);
-
-/// <summary>What a tool answers when the run could not happen, or its job did not end with a result.</summary>
-public sealed record FailedAnswer(
-    [property: JsonPropertyName("ok")] bool IsOk,
-    string Error,
-    string? Hint);
-
-/// <summary>The generated JSON of what the tools answer and their jobs end with: a native build looks nothing up at run time.</summary>
+/// <summary>The generated JSON of the data the tools answer and their jobs end with: a native build looks nothing up at run time.</summary>
 [JsonSourceGenerationOptions(PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
-[JsonSerializable(typeof(RunAnswer))]
-[JsonSerializable(typeof(TestAnswer))]
-[JsonSerializable(typeof(PendingAnswer))]
-[JsonSerializable(typeof(FailedAnswer))]
+[JsonSerializable(typeof(RunSummary))]
+[JsonSerializable(typeof(TestSummary))]
 public sealed partial class SandboxJson : JsonSerializerContext;

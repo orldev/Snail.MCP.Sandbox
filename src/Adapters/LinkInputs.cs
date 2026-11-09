@@ -1,6 +1,5 @@
 using System.Text;
 using Microsoft.Extensions.Options;
-using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.MCP.Sandbox.Configuration;
 
@@ -25,12 +24,12 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
         var limits = options.Value;
 
         if (links.Count > limits.MaxInputFiles)
-            return Answer.Failed<IReadOnlyList<InputFile>>(
+            return Answer.Failed(
                 $"{links.Count} files were passed; one run may read {limits.MaxInputFiles}.",
                 "Pass only the files this piece of code needs.");
 
         if (links.FirstOrDefault(link => !IsAllowed(link, limits.AllowedHosts)) is { } forbidden)
-            return Answer.Failed<IReadOnlyList<InputFile>>(
+            return Answer.Failed(
                 $"A file link points at {forbidden.Authority}, which this sandbox does not read from.",
                 "Pass the keys of the task's own files; the platform turns them into links this sandbox accepts.");
 
@@ -44,7 +43,7 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
             var outcome = await DownloadAsync(link, path, limits.MaxInputBytes, limits.MaxInputTotalBytes - total, cancellationToken);
 
             if (outcome.Error is { } error)
-                return Answer.Failed<IReadOnlyList<InputFile>>($"{name}: {error}", outcome.Hint);
+                return Answer.Failed($"{name}: {error}", outcome.Hint);
 
             total += outcome.Value;
             fetched.Add(new InputFile(name, path, outcome.Value));
@@ -134,15 +133,15 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
         }
         catch (HttpRequestException exception)
         {
-            return Answer.Failed<long>($"the link could not be read: {exception.Message}", StoreUnreachable);
+            return Answer.Failed($"the link could not be read: {exception.Message}", StoreUnreachable);
         }
         catch (IOException exception)
         {
-            return Answer.Failed<long>($"the download broke off: {exception.Message}", StoreUnreachable);
+            return Answer.Failed($"the download broke off: {exception.Message}", StoreUnreachable);
         }
         catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return Answer.Failed<long>("the download did not finish within the two minutes the sandbox gives a link.", StoreUnreachable);
+            return Answer.Failed("the download did not finish within the two minutes the sandbox gives a link.", StoreUnreachable);
         }
     }
 
@@ -152,13 +151,13 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
         using var response = await http.GetAsync(link, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
 
         if (!response.IsSuccessStatusCode)
-            return Answer.Failed<long>(
+            return Answer.Failed(
                 $"the link answered {(int)response.StatusCode}.",
                 "A signed link lives for minutes; if the step ran long, call again and the platform signs a fresh one.");
 
         var limit = Math.Min(fileLimit, totalLeft);
         if (response.Content.Headers.ContentLength > limit)
-            return Answer.Failed<long>($"the file is {response.Content.Headers.ContentLength} bytes and the limit left is {limit} bytes.");
+            return Answer.Failed($"the file is {response.Content.Headers.ContentLength} bytes and the limit left is {limit} bytes.");
 
         await using var source = await response.Content.ReadAsStreamAsync(cancellationToken);
         await using var target = File.Create(path);
@@ -170,7 +169,7 @@ public sealed class LinkInputs(IHttpClientFactory clients, IOptions<SandboxOptio
         {
             written += read;
             if (written > limit)
-                return Answer.Failed<long>($"the file is larger than the limit left, {limit} bytes.");
+                return Answer.Failed($"the file is larger than the limit left, {limit} bytes.");
 
             await target.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
         }

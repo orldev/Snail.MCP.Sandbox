@@ -4,7 +4,6 @@ using System.Net;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using Microsoft.Extensions.Options;
-using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.MCP.Sandbox.Configuration;
 
@@ -67,7 +66,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
         {
             Log.RunNotCompleted(logger, exception, limits.DockerEndpoint);
 
-            return Answer.Failed<RunOutcome>(
+            return Answer.Failed(
                 $"The sandbox could not run the code: {exception.Message}",
                 "This is the sandbox failing, not the code. Call once more; if it fails again, say so in the answer.");
         }
@@ -103,7 +102,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
         {
             Log.DiagnosisNotAnswered(logger, exception, limits.DockerEndpoint);
 
-            return Answer.Failed<Readiness>(
+            return Answer.Failed(
                 $"The Docker daemon at {limits.DockerEndpoint} did not answer: {exception.Message}",
                 "The sandbox server cannot reach the node's Docker socket: check that the job mounts it and adds the socket's group.");
         }
@@ -139,7 +138,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
     {
         Log.RuntimeMissing(logger, runtime, string.Join(", ", known));
 
-        return Answer.Failed<T>(
+        return Answer.Failed(
             $"The sandbox node has no {runtime} runtime, and no code runs there until it has.",
             "Calling again will not help: the sandbox node is not set up. Say so in the answer.");
     }
@@ -159,7 +158,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
     {
         Log.DiagnosisNotAnswered(logger, exception, endpoint);
 
-        return Answer.Failed<T>(
+        return Answer.Failed(
             $"The Docker daemon at {endpoint} did not answer within {AnswerWait.TotalSeconds}s.",
             "The sandbox node's Docker daemon is hung or unreachable; calling again will not help until it answers. Say so in the answer.");
     }
@@ -168,7 +167,7 @@ public sealed class DockerContainers(IDockerClient docker, IOptions<SandboxOptio
     {
         Log.ImageMissing(logger, image);
 
-        return Answer.Failed<T>(
+        return Answer.Failed(
             $"The image {image} is not on the sandbox node, and no code runs there until it is.",
             "Calling again will not help: the sandbox node is not set up. Say so in the answer.");
     }

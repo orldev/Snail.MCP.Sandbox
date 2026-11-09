@@ -3,6 +3,10 @@
 # the actions in one pull request, the packages' minor and patch updates in another, each major update in its own.
 # Security updates do not wait for the schedule. The shared workflows are called by their major tag (@v1): Dependabot
 # proposes the next major when Snail.Sdk releases one.
+# Snail.Sdk and its levels come in one pull request of their own, a major update too: global.json names them apart,
+# but they are released together and build only at one version.
+# ModelContextProtocol's packages come in one pull request too, a major update included: apart, the server pinned the new
+# ModelContextProtocol while ModelContextProtocol.AspNetCore still asked for the old one, and restore refused it (NU1608).
 
 version: 2
 updates:
@@ -21,6 +25,10 @@ updates:
       interval: cron
       cronjob: '0 6 1 1,3,5,7,9,11 *'
     groups:
+      snail-sdk:
+        patterns: ['Snail.Sdk*']
+      model-context-protocol:
+        patterns: ['ModelContextProtocol*']
       packages:
         patterns: ['*']
         update-types: [minor, patch]

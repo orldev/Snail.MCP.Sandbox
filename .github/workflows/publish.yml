@@ -1,10 +1,11 @@
 name: release to NuGet
 
-# The shared server release of Snail.Sdk (its docs/workflows.md): one framework-dependent tool package, asked over HTTP
-# before it is pushed. The images a node runs are images.yml. A version tag (v1.2.0, v1.2.0-preview.1) releases; run by
-# hand, it builds and checks the package and pushes only when asked to. The push is a job of this file because nuget.org
-# gives a trusted publishing key only to a job of the workflow file its policy names in this repository
-# (job_workflow_ref): this publish.yml, with the secret NUGET_USER.
+# The shared server release of Snail.Sdk (its docs/workflows.md): a native tool package for each platform the project
+# ships to, each asked over HTTP on its own platform before it is pushed, and a framework-dependent one for the rest.
+# The images a node runs are images.yml. A version tag (v1.2.0, v1.2.0-preview.1) releases; run by hand, it builds and
+# checks the packages and pushes only when asked to. The push is a job of this file because nuget.org gives a trusted
+# publishing key only to a job of the workflow file its policy names in this repository (job_workflow_ref): this
+# publish.yml, with the secret NUGET_USER.
 
 on:
   push:

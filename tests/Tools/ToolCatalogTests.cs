@@ -2,7 +2,6 @@ using System.ComponentModel;
 using System.Reflection;
 using ModelContextProtocol.Server;
 using Snail.MCP.Sandbox.Adapters;
-using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Configuration;
 using Snail.MCP.Sandbox.Tools;
 using Snail.MCP.Sandbox.Domain;

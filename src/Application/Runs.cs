@@ -25,15 +25,15 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
         var wanted = files ?? [];
 
         if (string.IsNullOrWhiteSpace(code))
-            return Answer.Failed<RunOutcome>("There is no code to run.", "Pass the whole program in code; nothing from an earlier call is kept.");
+            return Answer.Failed("There is no code to run.", "Pass the whole program in code; nothing from an earlier call is kept.");
 
         if (seconds <= 0 || seconds > limits.MaxTimeoutSeconds)
-            return Answer.Failed<RunOutcome>(
+            return Answer.Failed(
                 $"timeoutSeconds was {seconds}; a run may take from 1 to {limits.MaxTimeoutSeconds} seconds.",
                 "Do less in one call when the work needs more than that.");
 
         if (wanted.FirstOrDefault(file => !Uri.TryCreate(file, UriKind.Absolute, out _)) is { } unsigned)
-            return Answer.Failed<RunOutcome>(
+            return Answer.Failed(
                 $"The file {unsigned} reached the sandbox as a name, not as a link, so it cannot be read.",
                 "Pass the keys of this task's files exactly as list_objects shows them; the platform signs those. A path on your own disk does not exist here.");
 
@@ -41,7 +41,7 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
         {
             Interlocked.Decrement(ref _asked);
 
-            return Answer.Failed<RunOutcome>(
+            return Answer.Failed(
                 $"The sandbox node is full: {limits.MaxConcurrentRuns} runs are going and {limits.MaxQueuedRuns} are waiting for a place.",
                 "Say so in the answer rather than calling again at once; a place frees when a run ends.");
         }

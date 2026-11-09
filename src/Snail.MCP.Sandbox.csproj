@@ -11,6 +11,16 @@
         <SnailMcpContainer>true</SnailMcpContainer>
     </PropertyGroup>
 
+    <!--
+        A native package per platform the server runs on, and a framework-dependent one for the rest (Snail.Sdk.Mcp's
+        default list, without win-x64). Windows is not among them: the server confines code under gVisor (runsc), which
+        only a Linux daemon has, and reaches it at a Unix socket; the CI would otherwise build win-x64 and put the
+        contract tests on a Windows runner. macOS stays for a developer's machine, running under runc.
+    -->
+    <PropertyGroup>
+        <ToolPackageRuntimeIdentifiers>osx-arm64;linux-x64;linux-arm64;any</ToolPackageRuntimeIdentifiers>
+    </PropertyGroup>
+
     <PropertyGroup>
         <Version>0.1.0</Version>
         <Description>MCP server over streamable HTTP that runs Python written by a model in a throwaway container with no network, a read-only root and hard limits; built for Snail.Swarm.Agent, runs as the Nomad job mcp-sandbox on a node of class sandbox.</Description>

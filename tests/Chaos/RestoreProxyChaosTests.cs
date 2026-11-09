@@ -30,7 +30,7 @@ public sealed class RestoreProxyChaosTests : IAsyncLifetime
         _ = EchoAsync();
         _ = LateEchoAsync();
 
-        int port = FreePort();
+        int port = Ports.Free();
         _proxy = new RestoreProxy(Options.Create(new SandboxOptions { RestoreProxy = $"http://127.0.0.1:{port}", RestoreProxyPort = port }), NullLogger<RestoreProxy>.Instance);
         await _proxy.StartAsync(_stopping.Token);
 
@@ -121,7 +121,7 @@ public sealed class RestoreProxyChaosTests : IAsyncLifetime
     private async Task<RestoreProxy> NamingAsync(string host)
     {
         await _proxy.StopAsync(CancellationToken.None);
-        int port = FreePort();
+        int port = Ports.Free();
         var named = new RestoreProxy(Options.Create(new SandboxOptions { RestoreProxy = $"http://127.0.0.1:{port}", RestoreProxyPort = port, RestoreHosts = [host] }), NullLogger<RestoreProxy>.Instance);
         await named.StartAsync(_stopping.Token);
 
@@ -225,15 +225,5 @@ public sealed class RestoreProxyChaosTests : IAsyncLifetime
         catch (Exception exception) when (exception is OperationCanceledException or SocketException or ObjectDisposedException)
         {
         }
-    }
-
-    private static int FreePort()
-    {
-        var probe = new TcpListener(IPAddress.Loopback, 0);
-        probe.Start();
-        int port = ((IPEndPoint)probe.LocalEndpoint).Port;
-        probe.Stop();
-
-        return port;
     }
 }

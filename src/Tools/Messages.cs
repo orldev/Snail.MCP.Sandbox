@@ -49,7 +49,7 @@ public static class Messages
 
     /// <summary>The note of a run still going when the wait ended.</summary>
     public const string Running =
-        "The run is still going. Read the job resource when you want its state; it ends with the same answer as its result, the files in it base64. A client that can wait awaits the resource instead of asking again.";
+        "The run is still going. Read the job resource when you want its state; it ends with the run as its result, any files in it base64. A client that can wait awaits the resource instead of asking again.";
 
     /// <summary>The hint of a job the server stopped under.</summary>
     public const string NotFinished =

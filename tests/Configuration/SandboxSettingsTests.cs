@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Reflection;
 using Microsoft.Extensions.Configuration;
 using Snail.MCP.Sandbox.Configuration;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Tests.Configuration;
 
@@ -27,20 +28,60 @@ public sealed class SandboxSettingsTests
             setting => Assert.NotEqual(Shown(setting.GetValue(defaults)), Shown(setting.GetValue(bound))));
     }
 
-    /// <summary>The address is read before a host exists, so it cannot fail through the options' validation; the refusal still names the variable rather than throwing a bare format error.</summary>
+    /// <summary>The address is read before a host exists, so it cannot fail through the options' validation; the refusal still names the setting and the value rather than throwing a bare format error.</summary>
     [Fact]
-    public void UrlOf_NotAnAddress_IsRefusedNamingTheVariable()
+    public void EndpointOf_NotAnAddress_IsRefusedNamingTheSetting()
     {
         var variables = new Hashtable { ["SNAIL_MCP_SANDBOX_URL"] = "eight thousand" };
 
-        var refusal = Assert.Throws<InvalidOperationException>(() => SandboxSettings.UrlOf(SandboxSettings.Read(variables)));
+        var refusal = Assert.Throws<StartRefusedException>(() => SandboxSettings.EndpointOf(SandboxSettings.Read(variables)));
 
-        Assert.Contains("SNAIL_MCP_SANDBOX_URL", refusal.Message, StringComparison.Ordinal);
+        Assert.Contains("SNAIL_MCP_SANDBOX_URL (or Url in the settings file) is 'eight thousand'", refusal.Message, StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Nothing named is port 8826 over HTTP, the only transport there is: on loopback on a machine, and on every interface
+    /// in the image, whose published port is the boundary. The server holds no key, so it does not open itself to the
+    /// network outside a container.
+    /// </summary>
     [Fact]
-    public void UrlOf_NothingNamed_IsTheDefaultPort() =>
-        Assert.Equal(8826, SandboxSettings.UrlOf(SandboxSettings.Read(new Hashtable())).Port);
+    public void EndpointOf_NothingNamed_IsTheDefaultPortOnLoopbackOrEveryInterfaceOfAContainer()
+    {
+        var endpoint = SandboxSettings.EndpointOf(SandboxSettings.Read(new Hashtable()));
+
+        Assert.Equal(McpTransport.Http, endpoint.Transport);
+        Assert.Equal(8826, endpoint.Url.Port);
+        Assert.Equal(IsInContainer, endpoint.ListensOnEveryInterface);
+    }
+
+    /// <summary>Every interface outside a container would hand the node's code runner to whoever reaches the port: refused at the start, naming the variable even in the test's own process, since the reading names the server.</summary>
+    [Fact]
+    public void EndpointOf_EveryInterfaceOutsideAContainer_IsRefusedNamingTheVariable()
+    {
+        var variables = new Hashtable { ["SNAIL_MCP_SANDBOX_URL"] = "http://0.0.0.0:8826/" };
+
+        if (IsInContainer)
+        {
+            Assert.True(SandboxSettings.EndpointOf(SandboxSettings.Read(variables)).ListensOnEveryInterface);
+
+            return;
+        }
+
+        var refusal = Assert.Throws<StartRefusedException>(() => SandboxSettings.EndpointOf(SandboxSettings.Read(variables)));
+
+        Assert.Contains("SNAIL_MCP_SANDBOX_URL (or Url in the settings file) is 'http://0.0.0.0:8826/'; it opens every interface", refusal.Message, StringComparison.Ordinal);
+    }
+
+    /// <summary>A transport that would mean stdio is refused at the read: the server answers only over HTTP.</summary>
+    [Fact]
+    public void EndpointOf_StdioNamed_IsRefusedNamingTheSetting()
+    {
+        var variables = new Hashtable { ["SNAIL_MCP_SANDBOX_TRANSPORT"] = "Stdio" };
+
+        var refusal = Assert.Throws<StartRefusedException>(() => SandboxSettings.EndpointOf(SandboxSettings.Read(variables)));
+
+        Assert.Contains("SNAIL_MCP_SANDBOX_TRANSPORT (or Transport in the settings file) is 'Stdio'", refusal.Message, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void Read_AnUnprefixedVariable_IsNotASetting()
@@ -98,6 +139,10 @@ public sealed class SandboxSettingsTests
             folder.Delete(recursive: true);
         }
     }
+
+    /// <summary>Whether these tests run in a container, where the image's every-interface reading holds.</summary>
+    private static bool IsInContainer =>
+        string.Equals(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER")?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
 
     private static string Written(DirectoryInfo folder, string json)
     {

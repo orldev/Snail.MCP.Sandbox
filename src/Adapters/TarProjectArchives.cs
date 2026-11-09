@@ -1,5 +1,4 @@
 using Microsoft.Extensions.Options;
-using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.MCP.Sandbox.Configuration;
 

@@ -15,6 +15,14 @@ public sealed class SandboxOptionsValidationTests
     public void Validate_EmptyRuntime_Fails() =>
         Assert.True(Validation.Validate(null, new SandboxOptions { Runtime = " " }).Failed);
 
+    /// <summary>The operator may have set it in either place, so the refusal names both: the variable and the settings file's key.</summary>
+    [Fact]
+    public void Validate_Failure_NamesTheVariableAndTheKeyOfTheSettingsFile() =>
+        Assert.StartsWith(
+            "SNAIL_MCP_SANDBOX_DOCKER_ENDPOINT (or DockerEndpoint in the settings file) must be an absolute address",
+            Validation.Validate(null, new SandboxOptions { DockerEndpoint = "docker.sock" }).FailureMessage,
+            StringComparison.Ordinal);
+
     [Theory]
     [InlineData("0:0")]
     [InlineData("000:1000")]

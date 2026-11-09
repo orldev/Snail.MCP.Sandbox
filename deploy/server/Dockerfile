@@ -14,8 +14,7 @@
 # refuse the build. The server is native: compiled ahead of time, which needs clang and zlib in the build stage, for
 # the platform the image is built for (TARGETARCH, which buildx sets: amd64 is linux-x64, arm64 is linux-arm64), since
 # ahead-of-time compilation does not cross architectures in the SDK image; and run on runtime-deps, with no .NET
-# runtime in the image. The restore reads Snail.Sdk from the sources nuget.config names, so a build on a machine
-# whose Snail.Sdk is a local package needs that feed reachable from the build.
+# runtime in the image. The restore takes Snail.Sdk from nuget.org, as every other package.
 ARG VERSION=0.0.0-local
 
 FROM mcr.microsoft.com/dotnet/sdk:10.0.302 AS build

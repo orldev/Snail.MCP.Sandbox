@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Options;
+using Snail.Sdk.Mcp.Hosting;
 
 namespace Snail.MCP.Sandbox.Configuration;
 
@@ -12,57 +13,60 @@ public sealed partial class SandboxOptionsValidation : IValidateOptions<SandboxO
         List<string> failures = [];
 
         if (string.IsNullOrWhiteSpace(options.Runtime))
-            failures.Add("SNAIL_MCP_SANDBOX_RUNTIME is empty: name the runtime explicitly, runsc on a sandbox node.");
+            failures.Add($"{Setting(nameof(SandboxOptions.Runtime))} is empty: name the runtime explicitly, runsc on a sandbox node.");
 
         if (string.IsNullOrWhiteSpace(options.Image))
-            failures.Add("SNAIL_MCP_SANDBOX_IMAGE is empty.");
+            failures.Add($"{Setting(nameof(SandboxOptions.Image))} is empty.");
 
         if (!Uri.TryCreate(options.DockerEndpoint, UriKind.Absolute, out _))
-            failures.Add("SNAIL_MCP_SANDBOX_DOCKER_ENDPOINT must be an absolute address, such as unix:///var/run/docker.sock.");
+            failures.Add($"{Setting(nameof(SandboxOptions.DockerEndpoint))} must be an absolute address, such as unix:///var/run/docker.sock.");
 
         if (NumericUser().Match(options.User) is not { Success: true } user)
-            failures.Add("SNAIL_MCP_SANDBOX_USER must be a numeric uid:gid, such as 65534:65534.");
+            failures.Add($"{Setting(nameof(SandboxOptions.User))} must be a numeric uid:gid, such as 65534:65534.");
         else if (user.Groups["uid"].Value.TrimStart('0') is "")
-            failures.Add("SNAIL_MCP_SANDBOX_USER must not be root.");
+            failures.Add($"{Setting(nameof(SandboxOptions.User))} must not be root.");
 
         if (options.MemoryBytes <= 0 || !IsALimit(options.Cpus) || options.Pids <= 0 || options.MaxConcurrentRuns <= 0)
-            failures.Add("SNAIL_MCP_SANDBOX_MEMORY_BYTES, SNAIL_MCP_SANDBOX_CPUS, SNAIL_MCP_SANDBOX_PIDS and SNAIL_MCP_SANDBOX_MAX_CONCURRENT_RUNS must all be positive numbers: an unset limit is no limit.");
+            failures.Add($"{Setting(nameof(SandboxOptions.MemoryBytes))}, {Setting(nameof(SandboxOptions.Cpus))}, {Setting(nameof(SandboxOptions.Pids))} and {Setting(nameof(SandboxOptions.MaxConcurrentRuns))} must all be positive numbers: an unset limit is no limit.");
 
         if (options.MaxQueuedRuns < 0 || options.MaxQueuedTestRuns < 0)
-            failures.Add("SNAIL_MCP_SANDBOX_MAX_QUEUED_RUNS and SNAIL_MCP_SANDBOX_MAX_QUEUED_TEST_RUNS must not be negative; 0 refuses every call past the places.");
+            failures.Add($"{Setting(nameof(SandboxOptions.MaxQueuedRuns))} and {Setting(nameof(SandboxOptions.MaxQueuedTestRuns))} must not be negative; 0 refuses every call past the places.");
 
         if (options.OutputLimitBytes <= 0 || options.OutFolderBytes <= 0 || options.TmpFolderBytes <= 0 || options.MaxOutputFiles <= 0)
-            failures.Add("SNAIL_MCP_SANDBOX_OUTPUT_LIMIT_BYTES, SNAIL_MCP_SANDBOX_OUT_FOLDER_BYTES, SNAIL_MCP_SANDBOX_TMP_FOLDER_BYTES and SNAIL_MCP_SANDBOX_MAX_OUTPUT_FILES must all be positive.");
+            failures.Add($"{Setting(nameof(SandboxOptions.OutputLimitBytes))}, {Setting(nameof(SandboxOptions.OutFolderBytes))}, {Setting(nameof(SandboxOptions.TmpFolderBytes))} and {Setting(nameof(SandboxOptions.MaxOutputFiles))} must all be positive.");
 
         if (options.DefaultTimeoutSeconds <= 0 || options.MaxTimeoutSeconds < options.DefaultTimeoutSeconds)
-            failures.Add("SNAIL_MCP_SANDBOX_DEFAULT_TIMEOUT_SECONDS must be positive and not above SNAIL_MCP_SANDBOX_MAX_TIMEOUT_SECONDS.");
+            failures.Add($"{Setting(nameof(SandboxOptions.DefaultTimeoutSeconds))} must be positive and not above {Setting(nameof(SandboxOptions.MaxTimeoutSeconds))}.");
 
         if (string.IsNullOrWhiteSpace(options.DotnetImage) || string.IsNullOrWhiteSpace(options.NodeImage) || string.IsNullOrWhiteSpace(options.CacheVolumePrefix))
-            failures.Add("SNAIL_MCP_SANDBOX_DOTNET_IMAGE, SNAIL_MCP_SANDBOX_NODE_IMAGE and SNAIL_MCP_SANDBOX_CACHE_VOLUME_PREFIX must all be set.");
+            failures.Add($"{Setting(nameof(SandboxOptions.DotnetImage))}, {Setting(nameof(SandboxOptions.NodeImage))} and {Setting(nameof(SandboxOptions.CacheVolumePrefix))} must all be set.");
 
         if (string.IsNullOrWhiteSpace(options.RestoreNetwork) || SharedNetwork().IsMatch(options.RestoreNetwork))
-            failures.Add("SNAIL_MCP_SANDBOX_RESTORE_NETWORK must name a network of its own, or none: host and container: modes share a namespace the run must not see.");
+            failures.Add($"{Setting(nameof(SandboxOptions.RestoreNetwork))} must name a network of its own, or none: host and container: modes share a namespace the run must not see.");
 
         if ((options.RestoreProxy is { Length: > 0 }) != (options.RestoreProxyPort > 0))
-            failures.Add("SNAIL_MCP_SANDBOX_RESTORE_PROXY and SNAIL_MCP_SANDBOX_RESTORE_PROXY_PORT are set together: an address nobody listens on fails every restore, and a proxy nobody is told of watches nothing.");
+            failures.Add($"{Setting(nameof(SandboxOptions.RestoreProxy))} and {Setting(nameof(SandboxOptions.RestoreProxyPort))} are set together: an address nobody listens on fails every restore, and a proxy nobody is told of watches nothing.");
 
         if (options.RestoreProxy is { Length: > 0 } proxy && (!Uri.TryCreate(proxy, UriKind.Absolute, out var address) || address.Scheme != Uri.UriSchemeHttp || address.UserInfo.Length > 0))
-            failures.Add("SNAIL_MCP_SANDBOX_RESTORE_PROXY must be an http address without credentials, such as http://mcp-sandbox:3128: the run's own name goes into it.");
+            failures.Add($"{Setting(nameof(SandboxOptions.RestoreProxy))} must be an http address without credentials, such as http://mcp-sandbox:3128: the run's own name goes into it.");
 
         if (options.RestoreProxyPort is < 0 or > 65535)
-            failures.Add("SNAIL_MCP_SANDBOX_RESTORE_PROXY_PORT must be a port, or 0 to keep the proxy off.");
+            failures.Add($"{Setting(nameof(SandboxOptions.RestoreProxyPort))} must be a port, or 0 to keep the proxy off.");
 
         if (options.TestMemoryBytes <= 0 || !IsALimit(options.TestCpus) || options.TestPids <= 0 || options.TestTmpFolderBytes <= 0 || options.MaxConcurrentTestRuns <= 0)
-            failures.Add("SNAIL_MCP_SANDBOX_TEST_MEMORY_BYTES, SNAIL_MCP_SANDBOX_TEST_CPUS, SNAIL_MCP_SANDBOX_TEST_PIDS, SNAIL_MCP_SANDBOX_TEST_TMP_FOLDER_BYTES and SNAIL_MCP_SANDBOX_MAX_CONCURRENT_TEST_RUNS must all be positive numbers.");
+            failures.Add($"{Setting(nameof(SandboxOptions.TestMemoryBytes))}, {Setting(nameof(SandboxOptions.TestCpus))}, {Setting(nameof(SandboxOptions.TestPids))}, {Setting(nameof(SandboxOptions.TestTmpFolderBytes))} and {Setting(nameof(SandboxOptions.MaxConcurrentTestRuns))} must all be positive numbers.");
 
         if (options.DefaultTestTimeoutSeconds <= 0 || options.MaxTestTimeoutSeconds < options.DefaultTestTimeoutSeconds)
-            failures.Add("SNAIL_MCP_SANDBOX_DEFAULT_TEST_TIMEOUT_SECONDS must be positive and not above SNAIL_MCP_SANDBOX_MAX_TEST_TIMEOUT_SECONDS.");
+            failures.Add($"{Setting(nameof(SandboxOptions.DefaultTestTimeoutSeconds))} must be positive and not above {Setting(nameof(SandboxOptions.MaxTestTimeoutSeconds))}.");
 
         if (options.MaxProjectBytes <= 0 || options.MaxProjectFiles <= 0)
-            failures.Add("SNAIL_MCP_SANDBOX_MAX_PROJECT_BYTES and SNAIL_MCP_SANDBOX_MAX_PROJECT_FILES must both be positive.");
+            failures.Add($"{Setting(nameof(SandboxOptions.MaxProjectBytes))} and {Setting(nameof(SandboxOptions.MaxProjectFiles))} must both be positive.");
 
         return failures.Count == 0 ? ValidateOptionsResult.Success : ValidateOptionsResult.Fail(failures);
     }
+
+    /// <summary>The setting as an operator writes it: its variable, and its key in the settings file.</summary>
+    private static string Setting(string key) => ServerSettings.NameOfSetting(SandboxSettings.Name, key);
 
     /// <summary>Whether a CPU count limits anything: positive and finite.</summary>
     /// <remarks>

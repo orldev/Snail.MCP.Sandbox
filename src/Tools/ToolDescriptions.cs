@@ -84,26 +84,11 @@ public static class ToolDescriptions
         """
         Seconds to wait for the run before answering with the job in flight, from 0 to 1860; 60 when
         omitted, 0 answers at once. A run that ends within it answers as described. One that does not answers with
-        ok true and job, the URI of a resource whose text is the job's report; the report ends with the same answer
-        as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.
+        ok true and the job's report as data, its uri a resource whose text is that report; the report ends with the
+        run as its result, every file in it base64. A client that can wait awaits that resource; it is not asked again.
         """;
 
     /// <summary>The time a run may take, as the caller asks for it.</summary>
     public const string RunPythonTimeout =
         "Seconds the run may take, from 1 to 300; 60 when omitted. Past it the run is killed and nothing from /out comes back.";
-
-    /// <summary>What the model reads before asking which tool does a thing.</summary>
-    public const string FindTool =
-        """
-        Which tool does a thing, said in your own words — "draw a chart from this table", "check the node
-        before I try again". Answers with the tools that match: the name to call and every argument each of
-        them takes, with what it means. When nothing matches it answers with all of them, because this
-        server has few enough tools that the whole list is a better answer than a wrong one.
-        """;
-
-    /// <summary>The task find_tool takes, in the model's own words.</summary>
-    public const string FindToolTask = "What you are trying to do, in the words you would use to describe it.";
-
-    /// <summary>How many tools find_tool answers with at most.</summary>
-    public const string FindToolLimit = "How many tools to return at most; 5 by default, and never more than this server has.";
 }

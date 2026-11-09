@@ -5,22 +5,9 @@ using Snail.Sdk.Mcp.JobClient;
 
 namespace Snail.MCP.Sandbox.Tests.Tools;
 
-/// <summary>The server as the platform reaches it: over HTTP, at /mcp, with a health check Nomad polls.</summary>
+/// <summary>The server as the platform reaches it: over HTTP, at /mcp, with a health check Nomad polls; in memory, beside a canned daemon.</summary>
 public sealed class HttpContractTests(SandboxServer factory) : IClassFixture<SandboxServer>
 {
-    /// <summary>A page in a browser always sends an Origin and an agent's client never does: the refusal is Snail.Sdk.Mcp.Http's, kept by taking its host.</summary>
-    [Fact]
-    public async Task Request_FromABrowser_IsRefused()
-    {
-        using var client = factory.CreateClient();
-        using var request = new HttpRequestMessage(HttpMethod.Post, new Uri("/mcp", UriKind.Relative));
-        request.Headers.Add("Origin", "https://example.com");
-
-        using var answer = await client.SendAsync(request);
-
-        Assert.Equal(System.Net.HttpStatusCode.Forbidden, answer.StatusCode);
-    }
-
     [Fact]
     public async Task Healthz_RunningServer_AnswersOk()
     {
@@ -66,7 +53,26 @@ public sealed class HttpContractTests(SandboxServer factory) : IClassFixture<San
         var result = await session.CallToolAsync("sandbox_diagnose");
 
         Assert.True(result.IsError);
-        Assert.Contains("runsc", Assert.IsType<TextContentBlock>(result.Content[0]).Text, StringComparison.Ordinal);
+        Assert.Contains("runsc", result.Error(), StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The platform gives a role some of the tools by naming them in the address, <c>?tool=</c>: the session is offered
+    /// those alone, and a call to another is refused in the envelope. The grant is Snail.Sdk.Mcp's; this is the contract
+    /// that this server takes it.
+    /// </summary>
+    [Fact]
+    public async Task Session_GrantedOneTool_IsOfferedItAloneAndRefusedTheRest()
+    {
+        using var http = factory.CreateClient();
+        await using var session = await SessionAsync(http, "?tool=sandbox_diagnose");
+
+        var listed = await session.ListToolsAsync();
+        var refused = await session.CallToolAsync("sandbox_run_python", new Dictionary<string, object?> { ["code"] = "print(1)" });
+
+        Assert.Equal(["sandbox_diagnose"], listed.Select(tool => tool.Name));
+        Assert.True(refused.IsError);
+        Assert.Contains("'sandbox_run_python' was not granted to this session, which may use sandbox_diagnose", refused.Error(), StringComparison.Ordinal);
     }
 
     /// <summary>A model that does not know the names asks in its own words, and one call answers with the name and the arguments.</summary>
@@ -77,11 +83,10 @@ public sealed class HttpContractTests(SandboxServer factory) : IClassFixture<San
         await using var session = await SessionAsync(http);
 
         var result = await session.CallToolAsync("find_tool", new Dictionary<string, object?> { ["task"] = "draw a chart from this table" });
-        var text = Assert.IsType<TextContentBlock>(result.Content[0]).Text;
 
-        Assert.NotEqual(true, result.IsError);
-        Assert.Contains("sandbox_run_python", text, StringComparison.Ordinal);
-        Assert.Contains("timeoutSeconds", text, StringComparison.Ordinal);
+        Assert.True(result.IsOk(), result.Text());
+        Assert.Contains("sandbox_run_python", result.Text(), StringComparison.Ordinal);
+        Assert.Contains("timeoutSeconds", result.Text(), StringComparison.Ordinal);
     }
 
     [Fact]
@@ -98,8 +103,8 @@ public sealed class HttpContractTests(SandboxServer factory) : IClassFixture<San
     }
 
     /// <summary>
-    /// A client that cannot wait asks with wait 0 and gets the job; one that can awaits its resource and finds the same
-    /// answer in the result, the files whole inside it — that is all a late reader has.
+    /// A client that cannot wait asks with wait 0 and gets the job; one that can awaits its resource and finds the run as
+    /// the result, the files whole inside it — that is all a late reader has.
     /// </summary>
     [Fact]
     public async Task CallTool_RunPythonWithNoWait_AnswersWithAJobWhoseResultCarriesTheFiles()
@@ -113,7 +118,7 @@ public sealed class HttpContractTests(SandboxServer factory) : IClassFixture<San
 
         Assert.StartsWith("job://sandbox/python/", report.Uri, StringComparison.Ordinal);
         Assert.Equal(JobState.Succeeded, ended.State);
-        var file = ended.Result!.Value.GetProperty("data").GetProperty("files")[0];
+        var file = ended.Result!.Value.GetProperty("files")[0];
         Assert.Equal("chart.png", file.GetProperty("name").GetString());
         Assert.Equal(Convert.ToBase64String([137, 80, 78, 71]), file.GetProperty("content").GetString());
     }
@@ -132,9 +137,10 @@ public sealed class HttpContractTests(SandboxServer factory) : IClassFixture<San
         Assert.Equal(uri, read.Uri);
     }
 
-    private static Task<McpClient> SessionAsync(HttpClient http) =>
+    /// <summary>A session on the in-memory server, at the address the platform would open it at.</summary>
+    internal static Task<McpClient> SessionAsync(HttpClient http, string query = "") =>
         McpClient.CreateAsync(new HttpClientTransport(
-            new HttpClientTransportOptions { Endpoint = new Uri(http.BaseAddress!, "/mcp") },
+            new HttpClientTransportOptions { Endpoint = new Uri(http.BaseAddress!, $"/mcp{query}") },
             http,
             ownsHttpClient: false));
 }

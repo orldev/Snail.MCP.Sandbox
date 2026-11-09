@@ -1,10 +1,10 @@
 name: performance
 
-# Every two months: the benchmarks against benchmarks/baseline/, and Stryker.NET on the tests.
+# Twice a year, in January and July: the benchmarks against benchmarks/baseline/, and Stryker.NET on the tests.
 
 on:
   schedule:
-    - cron: '0 4 1 */2 *'
+    - cron: '0 4 1 1,7 *'
   workflow_dispatch:
 
 permissions:

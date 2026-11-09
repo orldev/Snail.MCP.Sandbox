@@ -1,9 +1,9 @@
 using System.Text.Json;
 using BenchmarkDotNet.Attributes;
 using ModelContextProtocol.Protocol;
-using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Domain;
 using Snail.MCP.Sandbox.Tools;
+using Snail.Sdk.Mcp.Hosting.Answers;
 using Snail.Sdk.Mcp.Hosting.Jobs;
 
 namespace Snail.MCP.Sandbox.Benchmarks;
@@ -26,7 +26,7 @@ public class AnswerBenchmarks
         var answer = Answer.Ok(new RunOutcome(0, "done\n", string.Empty, TimeSpan.FromSeconds(1)) { Outputs = [new OutputFile("chart.png", "image/png", bytes)] });
 
         _answered = answer;
-        _ended = new JobReport("job://sandbox/python/abc", JobState.Succeeded, Now, Now, 1, null, JsonSerializer.SerializeToElement(ToolResponse.Answered(answer), ToolResponse.RunResult));
+        _ended = new JobReport("job://sandbox/python/abc", JobState.Succeeded, Now, Now, 1, null, JsonSerializer.SerializeToElement(AnswerFields.Of(answer.Value!, withContent: true), ToolResponse.RunResult));
     }
 
     [Benchmark(Baseline = true)]

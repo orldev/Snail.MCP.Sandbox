@@ -1,5 +1,4 @@
 using System.Text.Json;
-using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Domain;
 using Snail.MCP.Sandbox.Tools;
 using Snail.Sdk.Mcp.Hosting.Jobs;
@@ -23,7 +22,7 @@ public sealed class AnswerAllocationChaosTests
         var bytes = new byte[32 * 1024 * 1024];
         Random.Shared.NextBytes(bytes);
         var answer = Answer.Ok(new RunOutcome(0, string.Empty, string.Empty, TimeSpan.FromSeconds(1)) { Outputs = [new OutputFile("big.bin", "application/octet-stream", bytes)] });
-        var ended = new JobReport("job://sandbox/python/abc", JobState.Succeeded, Now, Now, 1, null, JsonSerializer.SerializeToElement(ToolResponse.Answered(answer), ToolResponse.RunResult));
+        var ended = new JobReport("job://sandbox/python/abc", JobState.Succeeded, Now, Now, 1, null, JsonSerializer.SerializeToElement(AnswerFields.Of(answer.Value!, withContent: true), ToolResponse.RunResult));
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         var result = ToolResponse.Run(ended, answer);
