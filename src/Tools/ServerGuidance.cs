@@ -28,7 +28,11 @@ public static class ServerGuidance
         When a call fails before the program starts, sandbox_diagnose says whether the node can run code at all.
         find_tool names the tool for a thing said in your own words, and the arguments it takes.
 
-        Every answer is JSON with an ok flag. When ok is false the program did not run at all: read error and hint.
+        Every answer is JSON with an ok flag, and a failed call is also flagged isError. When ok is false the run was
+        refused or the sandbox failed under it, never your program: read error and hint and do what they say rather than
+        repeating the call verbatim. type names the failure: arguments a mistake of the call, busy a full node (say so,
+        do not call again at once), notReady a node not set up, notAllowed, linkRefused, unreachable, tooLarge or
+        malformed a file or project refused, internal the sandbox's own.
         When ok is true, a non-zero exitCode means your program failed, and stderr ends with the reason.
         """;
 }

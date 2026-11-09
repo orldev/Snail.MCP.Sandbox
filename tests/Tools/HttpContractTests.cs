@@ -75,6 +75,20 @@ public sealed class HttpContractTests(SandboxServer factory) : IClassFixture<San
         Assert.Contains("'sandbox_run_python' was not granted to this session, which may use sandbox_diagnose", refused.Error(), StringComparison.Ordinal);
     }
 
+    /// <summary>An argument the tool does not take is refused with the one it probably meant, never dropped so that the run goes on without the limit asked for.</summary>
+    [Fact]
+    public async Task CallTool_RunPythonWithAnArgumentItDoesNotTake_IsRefusedNamingTheOneMeant()
+    {
+        using var http = factory.CreateClient();
+        await using var session = await SessionAsync(http);
+
+        var refused = await session.CallToolAsync("sandbox_run_python", new Dictionary<string, object?> { ["code"] = "print(1)", ["timeout"] = 5 });
+
+        Assert.True(refused.IsError);
+        Assert.Equal("arguments", refused.Type());
+        Assert.Contains("timeoutSeconds", refused.Text(), StringComparison.Ordinal);
+    }
+
     /// <summary>A model that does not know the names asks in its own words, and one call answers with the name and the arguments.</summary>
     [Fact]
     public async Task CallTool_FindTool_NamesTheToolForATaskInTheModelsOwnWords()

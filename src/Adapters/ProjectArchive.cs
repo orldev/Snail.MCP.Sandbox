@@ -1,5 +1,6 @@
 using System.Formats.Tar;
 using System.IO.Compression;
+using Snail.MCP.Sandbox.Application;
 
 namespace Snail.MCP.Sandbox.Adapters;
 
@@ -46,12 +47,12 @@ internal static class ProjectArchive
             while (await reader.GetNextEntryAsync(copyData: false, cancellationToken) is { } entry)
             {
                 if (await packing.AddAsync(entry, limits, cancellationToken) is { } refusal)
-                    return Answer.Failed(refusal, Hint);
+                    return refusal;
             }
         }
         catch (Exception exception) when (exception is InvalidDataException or FormatException or EndOfStreamException)
         {
-            return Answer.Failed($"The project archive could not be read: {exception.Message}", Hint);
+            return Answer.Failed($"The project archive could not be read: {exception.Message}", Hint, FailureTypes.Malformed);
         }
 
         return Answer.Ok(new PackedProject(target, [.. packing.Paths], [.. packing.Omitted]));
@@ -96,10 +97,10 @@ internal static class ProjectArchive
         public List<string> Omitted { get; } = [];
 
         /// <summary>Copies one entry, or answers why the whole project is refused.</summary>
-        public async Task<string?> AddAsync(TarEntry entry, ProjectLimits limits, CancellationToken cancellationToken)
+        public async Task<AnswerFailure?> AddAsync(TarEntry entry, ProjectLimits limits, CancellationToken cancellationToken)
         {
             if (Inside(entry.Name) is not { } path)
-                return entry.Name.Trim('/', '.').Length == 0 ? null : $"The archive entry {entry.Name} points outside the project folder.";
+                return entry.Name.Trim('/', '.').Length == 0 ? null : Answer.Failed($"The archive entry {entry.Name} points outside the project folder.", Hint, FailureTypes.Malformed);
 
             if (entry.EntryType is TarEntryType.Directory)
             {
@@ -115,10 +116,10 @@ internal static class ProjectArchive
 
             _bytes += entry.Length;
             if (_bytes > limits.MaxBytes)
-                return $"The project unpacks to more than {limits.MaxBytes / (1024 * 1024)} MB.";
+                return Answer.Failed($"The project unpacks to more than {limits.MaxBytes / (1024 * 1024)} MB.", Hint, FailureTypes.TooLarge);
 
             if (Paths.Count >= limits.MaxFiles)
-                return $"The project has more than {limits.MaxFiles} files.";
+                return Answer.Failed($"The project has more than {limits.MaxFiles} files.", Hint, FailureTypes.TooLarge);
 
             await FoldersAsync(ParentOf(path), cancellationToken);
             await writer.WriteEntryAsync(File($"{Folder}/{path}", entry), cancellationToken);

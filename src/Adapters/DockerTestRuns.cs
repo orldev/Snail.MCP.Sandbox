@@ -4,6 +4,7 @@ using System.Net;
 using Docker.DotNet;
 using Docker.DotNet.Models;
 using Microsoft.Extensions.Options;
+using Snail.MCP.Sandbox.Application;
 using Snail.MCP.Sandbox.Application.Ports;
 using Snail.MCP.Sandbox.Configuration;
 
@@ -52,7 +53,8 @@ public sealed class DockerTestRuns(IDockerClient docker, IOptions<SandboxOptions
 
             return Answer.Failed(
                 $"The sandbox could not run the tests: {exception.Message}",
-                "This is the sandbox failing, not the project. Call once more; if it fails again, say so in the answer.");
+                "This is the sandbox failing, not the project. Call once more; if it fails again, say so in the answer.",
+                FailureTypes.Internal);
         }
     }
 

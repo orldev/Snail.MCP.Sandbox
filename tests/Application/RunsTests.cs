@@ -32,6 +32,33 @@ public sealed class RunsTests
         Assert.Contains("1 to 300 seconds", answer.Error, StringComparison.Ordinal);
     }
 
+    /// <summary>A mistake of the call is the SDK's <c>arguments</c>, so a program tells it from a node that is full or not set up.</summary>
+    [Theory]
+    [InlineData("  ", null, null)]
+    [InlineData("print(1)", null, 0)]
+    [InlineData("print(1)", "tasks/7f/attachments/sales.csv", null)]
+    public async Task RunAsync_MistakeOfTheCall_IsTypedArguments(string code, string? file, int? seconds)
+    {
+        var answer = await Runs(new Inputs(), new Containers()).RunAsync(code, file is null ? null : [file], seconds, CancellationToken.None);
+
+        Assert.Equal("arguments", answer.Type);
+    }
+
+    /// <summary>A node past its places and its queue is <c>busy</c>: worth a later call, unlike a node that is not set up.</summary>
+    [Fact]
+    public async Task RunAsync_PastThePlacesAndTheQueue_IsTypedBusy()
+    {
+        var gate = new TaskCompletionSource();
+        var runs = new Runs(new Inputs(), new Containers { Gate = gate.Task }, Options.Create(new SandboxOptions { MaxConcurrentRuns = 1, MaxQueuedRuns = 0 }));
+
+        var first = runs.RunAsync("print(1)", null, null, CancellationToken.None);
+        var second = await runs.RunAsync("print(2)", null, null, CancellationToken.None);
+        gate.SetResult();
+        await first;
+
+        Assert.Equal("busy", second.Type);
+    }
+
     [Fact]
     public async Task RunAsync_NoTimeout_RunsForTheDefault()
     {

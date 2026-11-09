@@ -25,17 +25,19 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
         var wanted = files ?? [];
 
         if (string.IsNullOrWhiteSpace(code))
-            return Answer.Failed("There is no code to run.", "Pass the whole program in code; nothing from an earlier call is kept.");
+            return Answer.Failed("There is no code to run.", "Pass the whole program in code; nothing from an earlier call is kept.", FailureTypes.Arguments);
 
         if (seconds <= 0 || seconds > limits.MaxTimeoutSeconds)
             return Answer.Failed(
                 $"timeoutSeconds was {seconds}; a run may take from 1 to {limits.MaxTimeoutSeconds} seconds.",
-                "Do less in one call when the work needs more than that.");
+                "Do less in one call when the work needs more than that.",
+                FailureTypes.Arguments);
 
         if (wanted.FirstOrDefault(file => !Uri.TryCreate(file, UriKind.Absolute, out _)) is { } unsigned)
             return Answer.Failed(
                 $"The file {unsigned} reached the sandbox as a name, not as a link, so it cannot be read.",
-                "Pass the keys of this task's files exactly as list_objects shows them; the platform signs those. A path on your own disk does not exist here.");
+                "Pass the keys of this task's files exactly as list_objects shows them; the platform signs those. A path on your own disk does not exist here.",
+                FailureTypes.Arguments);
 
         if (Interlocked.Increment(ref _asked) > limits.MaxConcurrentRuns + limits.MaxQueuedRuns)
         {
@@ -43,7 +45,8 @@ public sealed class Runs(IInputs inputs, IContainers containers, IOptions<Sandbo
 
             return Answer.Failed(
                 $"The sandbox node is full: {limits.MaxConcurrentRuns} runs are going and {limits.MaxQueuedRuns} are waiting for a place.",
-                "Say so in the answer rather than calling again at once; a place frees when a run ends.");
+                "Say so in the answer rather than calling again at once; a place frees when a run ends.",
+                FailureTypes.Busy);
         }
 
         try

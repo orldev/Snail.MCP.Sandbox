@@ -90,6 +90,7 @@ public sealed class ProjectArchiveTests : IDisposable
 
         Assert.False(answer.IsSuccess);
         Assert.Contains("outside the project", answer.Error, StringComparison.Ordinal);
+        Assert.Equal("malformed", answer.Type);
     }
 
     [Fact]
@@ -102,6 +103,7 @@ public sealed class ProjectArchiveTests : IDisposable
 
         Assert.False(answer.IsSuccess);
         Assert.Contains("tar", answer.Hint, StringComparison.Ordinal);
+        Assert.Equal("malformed", answer.Type);
     }
 
     [Theory]

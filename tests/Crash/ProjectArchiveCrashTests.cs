@@ -24,6 +24,7 @@ public sealed class ProjectArchiveCrashTests : IDisposable
 
         Assert.False(answer.IsSuccess);
         Assert.Contains("MB", answer.Error, StringComparison.Ordinal);
+        Assert.Equal("tooLarge", answer.Type);
         Assert.True(new FileInfo(target).Length < 32 * 1024);
     }
 
@@ -36,6 +37,7 @@ public sealed class ProjectArchiveCrashTests : IDisposable
         var answer = await ProjectArchive.RepackAsync(source, Path.Combine(_folder, "project.tar"), RunUser, new ProjectLimits(1024 * 1024, 10), CancellationToken.None);
 
         Assert.Contains("more than 10 files", answer.Error, StringComparison.Ordinal);
+        Assert.Equal("tooLarge", answer.Type);
     }
 
     /// <summary>Breaks the stream: a gzip cut in the middle is an answer the model can act on, not a crash of the server.</summary>
@@ -51,6 +53,7 @@ public sealed class ProjectArchiveCrashTests : IDisposable
 
         Assert.False(answer.IsSuccess);
         Assert.Contains("could not be read", answer.Error, StringComparison.Ordinal);
+        Assert.Equal("malformed", answer.Type);
     }
 
     [Fact]

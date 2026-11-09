@@ -48,6 +48,19 @@ public sealed class TestRunsTests
         Assert.Contains("1 to 1800 seconds", answer.Error, StringComparison.Ordinal);
     }
 
+    /// <summary>A mistake of the call is the SDK's <c>arguments</c>, so a program tells it from a node that is full or not set up.</summary>
+    [Theory]
+    [InlineData(" ", null, null)]
+    [InlineData("tasks/7f/project.tar.gz", null, null)]
+    [InlineData(Link, "java", null)]
+    [InlineData(Link, null, 0)]
+    public async Task RunAsync_MistakeOfTheCall_IsTypedArguments(string project, string? toolchain, int? seconds)
+    {
+        var answer = await Runs(new Inputs(), new Archives(), new Containers()).RunAsync(project, toolchain, seconds, CancellationToken.None);
+
+        Assert.Equal("arguments", answer.Type);
+    }
+
     [Fact]
     public async Task RunAsync_RestoreReachedHosts_ReportsThem()
     {

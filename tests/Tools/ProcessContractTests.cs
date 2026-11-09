@@ -88,6 +88,7 @@ public sealed class ProcessContractTests : IAsyncLifetime
 
         Assert.True(result.IsError);
         Assert.Contains("did not answer", result.Error(), StringComparison.Ordinal);
+        Assert.Equal("notReady", result.Type());
     }
 
     [Fact]
@@ -100,6 +101,7 @@ public sealed class ProcessContractTests : IAsyncLifetime
 
         Assert.True(result.IsError);
         Assert.Contains("could not run the code", result.Error(), StringComparison.Ordinal);
+        Assert.Equal("internal", result.Type());
     }
 
     /// <summary>No host is allowed by default, so the link is refused before anything is downloaded or a container exists.</summary>
@@ -113,6 +115,20 @@ public sealed class ProcessContractTests : IAsyncLifetime
 
         Assert.True(result.IsError);
         Assert.Contains("example.com", result.Error(), StringComparison.Ordinal);
+        Assert.Equal("notAllowed", result.Type());
+    }
+
+    /// <summary>A wait outside the range is the call's mistake, the SDK's <c>arguments</c>, refused before a job exists.</summary>
+    [Fact]
+    public async Task CallTool_WaitOutsideTheRange_IsTypedArguments()
+    {
+        using var cancellation = new CancellationTokenSource(Timeout);
+        await using var session = await SessionAsync(cancellation.Token);
+
+        var result = await session.CallToolAsync("sandbox_run_python", new Dictionary<string, object?> { ["code"] = "print(1)", ["wait"] = -1 }, cancellationToken: cancellation.Token);
+
+        Assert.True(result.IsError);
+        Assert.Equal("arguments", result.Type());
     }
 
     /// <summary>

@@ -32,6 +32,7 @@ public sealed class DockerContainersTests : IDisposable
 
         Assert.False(answer.IsSuccess);
         Assert.Contains("runsc", answer.Error, StringComparison.Ordinal);
+        Assert.Equal("notReady", answer.Type);
         Assert.DoesNotContain("CreateContainerAsync", daemon.Calls);
     }
 
@@ -274,6 +275,7 @@ public sealed class DockerContainersTests : IDisposable
 
         Assert.False(answer.IsSuccess);
         Assert.Contains("snail/sandbox-python:latest", answer.Error, StringComparison.Ordinal);
+        Assert.Equal("notReady", answer.Type);
     }
 
     [Fact]
@@ -335,6 +337,7 @@ public sealed class DockerContainersTests : IDisposable
         var answer = await Containers(daemon).DiagnoseAsync(CancellationToken.None);
 
         Assert.Contains("snail/sandbox-python:latest", answer.Error, StringComparison.Ordinal);
+        Assert.Equal("notReady", answer.Type);
     }
 
     private DockerContainers Containers(Daemon daemon) =>

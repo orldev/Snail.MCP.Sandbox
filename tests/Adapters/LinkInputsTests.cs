@@ -42,6 +42,7 @@ public sealed class LinkInputsTests : IDisposable
 
         Assert.False(answer.IsSuccess);
         Assert.Contains("vault.service:8200", answer.Error, StringComparison.Ordinal);
+        Assert.Equal("notAllowed", answer.Type);
         Assert.Equal(0, asked);
     }
 
@@ -55,6 +56,28 @@ public sealed class LinkInputsTests : IDisposable
 
         Assert.False(answer.IsSuccess);
         Assert.Contains("larger than the limit", answer.Error, StringComparison.Ordinal);
+        Assert.Equal("tooLarge", answer.Type);
+    }
+
+    [Fact]
+    public async Task FetchAsync_AnnouncedLengthPastTheLimit_IsTypedTooLarge()
+    {
+        var inputs = Inputs(_ => new HttpResponseMessage(HttpStatusCode.OK) { Content = new ByteArrayContent(new byte[2048]) }, maxBytes: 1024);
+
+        var answer = await inputs.FetchAsync([new Uri("http://minio:9000/b/big.bin")], _folder, CancellationToken.None);
+
+        Assert.Equal("tooLarge", answer.Type);
+    }
+
+    /// <summary>A store that does not answer is <c>unreachable</c>: the platform's, and not worth calling again at once.</summary>
+    [Fact]
+    public async Task FetchAsync_StoreDoesNotAnswer_IsTypedUnreachable()
+    {
+        var inputs = Inputs(_ => throw new HttpRequestException("Connection refused (minio:9000)"));
+
+        var answer = await inputs.FetchAsync([new Uri("http://minio:9000/b/sales.csv")], _folder, CancellationToken.None);
+
+        Assert.Equal("unreachable", answer.Type);
     }
 
     [Fact]
@@ -66,12 +89,13 @@ public sealed class LinkInputsTests : IDisposable
 
         Assert.Contains("403", answer.Error, StringComparison.Ordinal);
         Assert.Contains("fresh one", answer.Hint, StringComparison.Ordinal);
+        Assert.Equal("linkRefused", answer.Type);
     }
 
     [Fact]
     public async Task FetchAsync_MoreFilesThanAllowed_IsRefused() =>
-        Assert.False((await Inputs(_ => Body("x"), maxFiles: 1)
-            .FetchAsync([new Uri("http://minio:9000/b/a.csv"), new Uri("http://minio:9000/b/b.csv")], _folder, CancellationToken.None)).IsSuccess);
+        Assert.Equal("arguments", (await Inputs(_ => Body("x"), maxFiles: 1)
+            .FetchAsync([new Uri("http://minio:9000/b/a.csv"), new Uri("http://minio:9000/b/b.csv")], _folder, CancellationToken.None)).Type);
 
     /// <summary>A crafted link must not climb out of the run's folder, and two files of one name must not overwrite each other.</summary>
     [Fact]

@@ -21,8 +21,10 @@ platform's probe calls it, so a server that starts on a node without gVisor show
 try again" — and answers with the tools that match: the name to call and every argument each of them takes, with
 what it means. When nothing matches, the whole list comes back, because three tools are a better answer than a
 wrong one. It carries no `sandbox_` prefix, like the `find_tool` of the other servers of this fleet, so a model
-that learned the question on one of them asks it the same way here. A session opened with a grant is answered
-only with the tools it was granted: naming one the door will refuse costs a round trip to find out.
+that learned the question on one of them asks it the same way here — it is Snail.Sdk.Mcp's own, which this server
+gives only the other words its tools are asked for by. A session opened with a grant (`/mcp?tool=…`, once per tool)
+is listed and answered only the tools it was granted, and a call to any other is refused in the envelope with
+`type` `notGranted`: naming one the door will refuse costs a round trip to find out.
 
 The two other layers those servers have — `run_tools` for a sequence of calls and `run_program` for a JavaScript
 program that decides as it goes — are deliberately absent here. They exist so that work needing twenty calls
@@ -175,21 +177,40 @@ through the proxy. .NET and Node test runs were not.
   with `--report-trx`, and again with xunit.v3's own `--report-xunit-trx` when the project carries no TRX extension;
   exit code 8, no test ran, is `noTests`. A Python project with no `requirements*.txt` has its `pyproject.toml`
   installed, with its `test` and `dev` extras.
-- **Errors.** `isError` means the run did not happen: no runtime, no image, a refused file. A program that ran
-  and failed is `ok: true` with a non-zero `exitCode`; exit code 137 is almost always the memory limit.
+- **Errors.** `isError` means the run was refused — no runtime, no image, a refused file — or the sandbox failed
+  under it, never that the program failed. Its job ends `failed` with the refusal's error, hint and type, and the
+  answer is `{"ok": false, "error": …, "hint": …, "type": …, "data": …}`. `type` is the word a program branches on
+  (`FailureTypes`): `arguments` for a mistake of the call (no code or project, a key where a link was due, a timeout,
+  `wait` or toolchain outside what the tool takes, more files than a run reads), `busy` for a node past its places
+  and its queue, `notReady` for a node not set up (no `runsc`, no image, a Docker daemon that does not answer),
+  `notAllowed` for a link to a host the deployment does not name, `linkRefused` for a link the store answered with
+  an error (an expired signature, most often), `unreachable` for a store that did not answer or a download that broke
+  off, `tooLarge` for a file or a project past its limit, `malformed` for an archive that is no tar or climbs out of
+  the project, `internal` for the sandbox's own failure (a daemon gone mid-run; the hint says it is the sandbox
+  failing, not the code), `cancelled` for a run the server stopped under. Before, every refusal inside a job read
+  `failed`; the platform reads the error and the outcome, never that word. `data` the job's
+  report, a field that has nothing to say left out — with the report as the structured content, as Snail.Sdk.Mcp
+  answers a job that failed. A call that sends an argument its tool does not take, or leaves out one it requires, is
+  refused before any job starts, `type` `arguments`, naming the argument it probably meant (`timeout` for
+  `timeoutSeconds`). A failed `sandbox_diagnose` is the text alone, with no structured content. A program that ran and failed is
+  `ok: true` with a non-zero `exitCode`; exit code 137 is almost always the memory limit.
 - **Jobs.** A run and a test run are jobs of `Snail.Sdk.Mcp.Hosting`: the tool starts the work and answers within
   `wait` seconds (60 when omitted, 0 at once, at most 1860: the longest test run and its grace). Ended in time, the
-  answer is the one above, and the structured content is the job's report without its `result`, which the answer
-  already is. Still going, the answer is
-  `{"ok": true, "job": "job://sandbox/python/<id>", "state": "running", "progress": …, "note": …}` and the structured
-  content is the job's report. The job is a resource at that URI whose text is its report; the report ends with
-  `result`, the same answer as above with every file of `/out` in it whole as `content`, base64 — a late reader has
-  nothing but the report. A client that can wait — the platform's worker, through `Snail.Sdk.Mcp.JobClient` — awaits
+  answer is the one above, and the structured content is the job's report — for a run without its `result`, which
+  the answer already is with its files as blocks. Still going, the answer is
+  `{"ok": true, "data": {"uri": "job://sandbox/python/<id>", "state": "running", "progress": …, …, "note": …}}` and
+  the structured content is the job's report. The job is a resource at that URI whose text is its report; the report
+  of a job that succeeded ends with `result`, the `data` above itself — no envelope around it — with every file of
+  `/out` in it whole as `content`, base64: a late reader has nothing but the report. A run that could not happen ends
+  its job `failed`, its `message`, `hint` and `type` the refusal's. A client that can wait — the platform's worker, through `Snail.Sdk.Mcp.JobClient` — awaits
   the resource rather than asking again; the run goes on when the client that started it is gone, and ends with the
   server. A job belongs to the session that started it: that session reads and watches it, another session asking
   for its URI is told there is none, and the last twenty ended jobs of each session stay readable, five hundred in all.
-- **The job.** Port 8826 — the port of `SNAIL_MCP_SANDBOX_URL`, on every interface of the container, behind the
-  refusal of a browser's request that Snail.Sdk.Mcp.Http's host brings. The socket mounted at `/var/run/docker.sock`, and the socket's group — the node's
+- **The job.** Port 8826 — the port of `SNAIL_MCP_SANDBOX_URL` (`http://127.0.0.1:8826/` when unset), on every
+  interface of the container, whose published port is the boundary, behind the refusal of a browser's request that
+  Snail.Sdk.Mcp.Http's host brings. The server holds no key, so outside a container it keeps to loopback: an address
+  at `0.0.0.0` or beyond loopback there stops it at the start with the variable named (Snail.Sdk.Mcp's reach
+  `LoopbackOrContainer`). The socket mounted at `/var/run/docker.sock`, and the socket's group — the node's
   `meta.docker_gid` — added to the container, since the image runs as its non-root `app` user. Settings as
   environment variables below, or in the settings file; `SNAIL_MCP_SANDBOX_ALLOWED_HOSTS__*` must name the object store exactly as the workers reach it, because
   a link is signed for that host.
@@ -272,7 +293,7 @@ Nothing travels by bind mount, so the server's own container needs no host path 
 ```bash
 dotnet test
 docker build -t snail/sandbox-python:latest -f deploy/executor/Dockerfile .
-docker build -t snail/s3l-sandbox-mcp:latest -f deploy/server/Dockerfile .
+docker build -t s3l-sandbox-mcp:local -f deploy/server/Dockerfile .
 docker pull mcr.microsoft.com/dotnet/sdk:10.0
 docker pull node:22-bookworm-slim
 ```

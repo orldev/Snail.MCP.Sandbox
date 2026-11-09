@@ -40,6 +40,7 @@ public sealed class TestRunsCrashTests
 
         Assert.False(seventh.IsSuccess);
         Assert.Contains("full", seventh.Error, StringComparison.Ordinal);
+        Assert.Equal("busy", seventh.Type);
         Assert.All(asked, run => Assert.True(run.Result.IsSuccess));
     }
 

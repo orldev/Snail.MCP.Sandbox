@@ -43,7 +43,9 @@ public static class SandboxServerExtensions
         /// The host is Snail.Sdk.Mcp.Http's for the endpoint of <see cref="SandboxSettings.EndpointOf"/> — every interface in the
         /// container, log lines on stderr, where the container's log driver collects them, the heap trimmed when idle. A tool
         /// that throws answers in the envelope; a session's grant (<c>?tool=</c>) is held at the door and hides what it
-        /// withholds; <c>find_tool</c> searches what the session may call; a job belongs to the MCP session that started it
+        /// withholds; a call that leaves out an argument its tool requires or sends one it does not take (<c>timeout</c>
+        /// for <c>timeoutSeconds</c>) is refused, type <c>arguments</c>, before the tool runs, never dropped without a word;
+        /// <c>find_tool</c> searches what the session may call; a job belongs to the MCP session that started it
         /// (<c>JobOwners.Session</c>), so a session reads and watches only the runs it started.
         /// </para>
         /// </remarks>
@@ -66,6 +68,7 @@ public static class SandboxServerExtensions
                 .ExplainFailures()
                 .WithLocalHttpTransport()
                 .WithSessionGrant()
+                .WithArgumentCheck()
                 .WithTools<RunTools>(ToolJson.Options(SandboxJson.Default))
                 .WithToolDiscovery(Discovery)
                 .WithJobs(SandboxSettings.Name, JobOwners.Session);
